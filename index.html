@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 
 <head>
@@ -28,11 +28,16 @@
       align-items: center;
     }
 
-    #notepad-wrap {
-      display: flex;
-      justify-content: center;
-      margin-top: 10px;
+    .example-container {
+      margin-bottom: 40px;
+      text-align: center;
     }
+
+    #notepad-wrap {
+      margin: 0 auto;
+      display: inline-block;
+    }
+
 
     .control-group {
       display: flex;
@@ -54,6 +59,10 @@
       color: #444;
       margin-top: 8px;
     }
+
+    #notepad-wrap {
+      margin: 0 auto;
+      display: inline-block;
   </style>
 </head>
 
@@ -80,19 +89,16 @@
     }
   </style>
 
-  <div class="note">Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y ver cómo cambian las
-    letras.</div>
-
-  <div id="notepad-wrap"></div>
-
+  <div class="note">
+    Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y
+    ver cómo cambian las letras.
+  </div>
+  <div class="example-container">
+    <div id="notepad-wrap"></div>
+  </div>
   <script>
-    // Generar 30 colores aleatorios en formato [r,g,b]
-    let colores = Array.from({ length: 30 }, () => [
-      Math.floor(Math.random() * 256), // r
-      Math.floor(Math.random() * 256), // g
-      Math.floor(Math.random() * 256)  // b
-    ]);
-
+    let alphabetMap = {};
+    const alfabeto = "abcdefghijklmnopqrstuvwxyz1234567890".split("");
     function randomRGB() {
       let r = Math.floor(Math.random() * 256);
       let g = Math.floor(Math.random() * 256);
@@ -100,8 +106,7 @@
       return `rgb(${r},${g},${b})`;
     }
 
-    let alphabetMap = {};
-    const alfabeto = "abcdefghijklmnopqrstuvwxyz1234567890".split("");
+
 
     function sendi(letri) {
       let alfi = []
@@ -109,16 +114,17 @@
         alfi[letra] = randomRGB();
       });
       return alfi
-    }    
+    }
   </script>
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const np = new Notepad({
         parent: document.getElementById('notepad-wrap'),
-        width: 600,
-        height: 300,
-        noteColorMap: sendi(alfabeto)
+        width: 'auto',
+        height: 'auto',
+        noteColorMap: sendi(alfabeto),
+        containerPadding: '0px'
       });
 
       // Initial defaults
@@ -127,6 +133,7 @@
       np.setFont('monospace', 20);
       np.setLetterPadding(2, 4);
       np.setLetterMargin(0);
+      np.setBorder(0)
 
       np.insertText('26 NOVIEMBRE');
 
@@ -139,6 +146,7 @@
       const resizableCheckbox = document.getElementById('resizable-checkbox');
       const fontFamilyInput = document.getElementById('font-family');
       const fontSizeInput = document.getElementById('font-size');
+      const containerPaddingInput = document.getElementById('container-padding');
       const padYInput = document.getElementById('pad-y');
       const padXInput = document.getElementById('pad-x');
       const marginXInput = document.getElementById('margin-x');
@@ -148,6 +156,7 @@
       const letterBorderRadiusInput = document.getElementById('letter-border-radius');
       const letterBorderWidthInput = document.getElementById('letter-border-width');
       const letterBorderColorInput = document.getElementById('letter-border-color');
+
 
       // Event Listeners
       bgPicker.addEventListener('input', (e) => np.setAppBackground(e.target.value));
@@ -171,6 +180,12 @@
 
       fontFamilyInput.addEventListener('change', (e) => np.setFont(e.target.value, null));
       fontSizeInput.addEventListener('input', (e) => np.setFont(null, parseInt(e.target.value) || 20));
+
+      const updateContainerPadding = () => {
+        const paddingValue = parseInt(containerPaddingInput.value) || 0;
+        np.setContainerPadding(`${paddingValue}px`);
+      };
+      containerPaddingInput.addEventListener('input', updateContainerPadding);
 
       const updatePadding = () => {
         np.setLetterPadding(
@@ -262,33 +277,45 @@
       <tbody>
         <tr>
           <td>Fondo App</td>
-          <td><input id="bg-picker" type="color" value="#efefef"></td>
+          <td><input id="bg-picker" type="color" value="#efefef" /></td>
           <td><code>setAppBackground()</code></td>
         </tr>
         <tr>
           <td>Fondo Notepad</td>
           <td>
-            <input id="cont-bg-picker" type="color" value="#ffffff">
-            <label style="font-size:12px; margin-left:8px;"><input id="cont-bg-transparent" type="checkbox">
+            <input id="cont-bg-picker" type="color" value="#ffffff" />
+            <label style="font-size:12px; margin-left:8px;"><input id="cont-bg-transparent" type="checkbox" />
               Transparente</label>
           </td>
           <td><code>setContainerBackground()</code></td>
         </tr>
         <tr>
           <td>Ancho (px)</td>
-          <td><input id="width-input" type="number" min="100" max="2000" value="600"></td>
+          <td>
+            <input id="width-input" type="number" min="100" max="2000" value="100" />
+          </td>
           <td><code>setSize(w, null)</code></td>
         </tr>
         <tr>
           <td>Alto (px)</td>
-          <td><input id="height-input" type="number" min="50" max="2000" value="300"></td>
+          <td>
+            <input id="height-input" type="number" min="50" max="2000" value="100" />
+          </td>
           <td><code>setSize(null, h)</code></td>
         </tr>
         <tr>
           <td>Redimensionable</td>
-          <td><input id="resizable-checkbox" type="checkbox"></td>
+          <td><input id="resizable-checkbox" type="checkbox" /></td>
           <td><code>setResizable()</code></td>
         </tr>
+        <tr>
+          <td>Padding del contenedor</td>
+          <td>
+            <input type="number" id="container-padding" value="10" min="0" step="1">
+          </td>
+          <td><code>setContainerPadding(padding)</code></td>
+        </tr>
+
         <tr>
           <td>Fuente</td>
           <td>
@@ -303,69 +330,91 @@
         </tr>
         <tr>
           <td>Tamaño Fuente (px)</td>
-          <td><input id="font-size" type="number" min="10" max="100" value="20"></td>
+          <td>
+            <input id="font-size" type="number" min="10" max="100" value="20" />
+          </td>
           <td><code>setFont(null, size)</code></td>
         </tr>
         <tr>
           <td>Padding Y (px)</td>
-          <td><input id="pad-y" type="number" min="0" max="50" value="2"></td>
+          <td>
+            <input id="pad-y" type="number" min="0" max="50" value="2" />
+          </td>
           <td><code>setLetterPadding(y, x)</code></td>
         </tr>
         <tr>
           <td>Padding X (px)</td>
-          <td><input id="pad-x" type="number" min="0" max="50" value="4"></td>
+          <td>
+            <input id="pad-x" type="number" min="0" max="50" value="4" />
+          </td>
           <td><code>setLetterPadding(y, x)</code></td>
         </tr>
         <tr>
           <td>Margin X (px)</td>
-          <td><input id="margin-x" type="number" min="0" max="50" value="0"></td>
+          <td>
+            <input id="margin-x" type="number" min="0" max="50" value="0" />
+          </td>
           <td><code>setLetterMargin()</code></td>
         </tr>
         <tr>
           <td>Borde Ancho (px)</td>
-          <td><input id="border-width" type="number" min="0" max="20" value="1"></td>
+          <td>
+            <input id="border-width" type="number" min="0" max="20" value="0" />
+          </td>
           <td><code>setBorder(w, c, r)</code></td>
         </tr>
         <tr>
           <td>Borde Color</td>
-          <td><input id="border-color" type="color" value="#cccccc"></td>
+          <td><input id="border-color" type="color" value="#cccccc" /></td>
           <td><code>setBorder(w, c, r)</code></td>
         </tr>
         <tr>
           <td>Borde Radio (px)</td>
-          <td><input id="border-radius" type="number" min="0" max="50" value="0"></td>
+          <td>
+            <input id="border-radius" type="number" min="0" max="50" value="0" />
+          </td>
           <td><code>setBorder(w, c, r)</code></td>
         </tr>
         <tr>
           <td>Radio Borde Letra (px)</td>
-          <td><input id="letter-border-radius" type="number" min="0" max="50" value="4"></td>
+          <td>
+            <input id="letter-border-radius" type="number" min="0" max="50" value="4" />
+          </td>
           <td><code>setLetterBorderRadius()</code></td>
         </tr>
         <tr>
           <td>Borde Letra Ancho (px)</td>
-          <td><input id="letter-border-width" type="number" min="0" max="10" value="0"></td>
+          <td>
+            <input id="letter-border-width" type="number" min="0" max="10" value="0" />
+          </td>
           <td><code>setLetterBorder(w, c)</code></td>
         </tr>
         <tr>
           <td>Borde Letra Color</td>
-          <td><input id="letter-border-color" type="color" value="#000000"></td>
+          <td>
+            <input id="letter-border-color" type="color" value="#000000" />
+          </td>
           <td><code>setLetterBorder(w, c)</code></td>
         </tr>
         <tr>
           <td>Texto Actual</td>
-          <td><textarea id="current-text" rows="3" style="width:100%; font-family:monospace;"></textarea></td>
+          <td>
+            <textarea id="current-text" rows="3" style="width:100%; font-family:monospace;"></textarea>
+          </td>
           <td><code>getPlainText() / setFromPlainText()</code></td>
         </tr>
         <tr>
           <td>JSON Detallado</td>
-          <td><textarea id="json-output" rows="10" style="width:100%; font-family:monospace; font-size:11px;"
-              readonly></textarea></td>
+          <td>
+            <textarea id="json-output" rows="10" style="width:100%; font-family:monospace; font-size:11px;"
+              readonly></textarea>
+          </td>
           <td><code>getDetailedJSON()</code></td>
         </tr>
       </tbody>
     </table>
   </div>
-
+  <a href="examples.html">Examples</a>
 </body>
 
 </html>
