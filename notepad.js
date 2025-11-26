@@ -21,7 +21,7 @@ class Notepad {
     this.fontFamily = options.fontFamily || 'monospace';
     // Default colors fallback (allow transparent spaces)
     this.colors = (options.colors && options.colors.length) ? options.colors : ['transparent'];
-
+    this._containerPadding = (typeof options.containerPadding !== 'undefined') ? options.containerPadding : '0px';
     // Color rules
     this.noteColorMap = options.noteColorMap || null;
     this.colorMap = options.colorMap || null;
@@ -228,6 +228,12 @@ class Notepad {
   // change whole app background or container background
   setAppBackground(color) { try { document.body.style.backgroundColor = color; } catch (e) { } }
   setContainerBackground(color) { try { this.container.style.background = color; } catch (e) { } }
+
+  setContainerPadding(padding) {
+    this._containerPadding = padding;
+    this.container.style.padding = padding;
+    this._render();
+  }
 
   setSize(w, h) {
     if (w) { this.width = w; this.container.style.width = w + 'px'; }
@@ -495,7 +501,7 @@ class Notepad {
       width: this.width + 'px',
       height: this.height + 'px',
       border: '1px solid #ccc',
-      padding: '10px',
+      padding: this._containerPadding,
       fontFamily: this.fontFamily,
       fontSize: this.fontSize + 'px',
       lineHeight: '1.5',
@@ -507,7 +513,6 @@ class Notepad {
       whiteSpace: 'pre-wrap',
       wordWrap: 'break-word',
     });
-
     this.content = document.createElement('div');
     this.content.style.display = 'inline';
     this.container.appendChild(this.content);
