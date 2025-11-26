@@ -1,0 +1,371 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <title>Notepad - demo colores por nota</title>
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/p5.js"></script>
+  <script src="notepad.js"></script>
+  <style>
+    body {
+      font-family: system-ui, Arial;
+      margin: 20px;
+      background: #efefef;
+    }
+
+    #controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    #controls label {
+      font-size: 14px;
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    #notepad-wrap {
+      display: flex;
+      justify-content: center;
+      margin-top: 10px;
+    }
+
+    .control-group {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="number"] {
+      width: 64px;
+    }
+
+    button {
+      padding: 6px 10px;
+      cursor: pointer;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #444;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+
+<body>
+  <!---->
+  <style>
+    /* ... existing styles ... */
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      max-width: 600px;
+      margin-bottom: 20px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+  </style>
+
+  <div class="note">Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y ver cómo cambian las
+    letras.</div>
+
+  <div id="notepad-wrap"></div>
+
+  <script>
+    // Generar 30 colores aleatorios en formato [r,g,b]
+    let colores = Array.from({ length: 30 }, () => [
+      Math.floor(Math.random() * 256), // r
+      Math.floor(Math.random() * 256), // g
+      Math.floor(Math.random() * 256)  // b
+    ]);
+
+    function randomRGB() {
+      let r = Math.floor(Math.random() * 256);
+      let g = Math.floor(Math.random() * 256);
+      let b = Math.floor(Math.random() * 256);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    let alphabetMap = {};
+    const alfabeto = "abcdefghijklmnopqrstuvwxyz1234567890".split("");
+
+    function sendi(letri) {
+      let alfi = []
+      letri.forEach(letra => {
+        alfi[letra] = randomRGB();
+      });
+      return alfi
+    }    
+  </script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const np = new Notepad({
+        parent: document.getElementById('notepad-wrap'),
+        width: 600,
+        height: 300,
+        noteColorMap: sendi(alfabeto)
+      });
+
+      // Initial defaults
+      np.setContainerBackground('#ffffff');
+      np.setAppBackground('#efefef');
+      np.setFont('monospace', 20);
+      np.setLetterPadding(2, 4);
+      np.setLetterMargin(0);
+
+      np.insertText('26 NOVIEMBRE');
+
+      // Controls
+      const bgPicker = document.getElementById('bg-picker');
+      const contBgPicker = document.getElementById('cont-bg-picker');
+      const contBgTransparent = document.getElementById('cont-bg-transparent');
+      const widthInput = document.getElementById('width-input');
+      const heightInput = document.getElementById('height-input');
+      const resizableCheckbox = document.getElementById('resizable-checkbox');
+      const fontFamilyInput = document.getElementById('font-family');
+      const fontSizeInput = document.getElementById('font-size');
+      const padYInput = document.getElementById('pad-y');
+      const padXInput = document.getElementById('pad-x');
+      const marginXInput = document.getElementById('margin-x');
+      const borderWidthInput = document.getElementById('border-width');
+      const borderColorInput = document.getElementById('border-color');
+      const borderRadiusInput = document.getElementById('border-radius');
+      const letterBorderRadiusInput = document.getElementById('letter-border-radius');
+      const letterBorderWidthInput = document.getElementById('letter-border-width');
+      const letterBorderColorInput = document.getElementById('letter-border-color');
+
+      // Event Listeners
+      bgPicker.addEventListener('input', (e) => np.setAppBackground(e.target.value));
+
+      const updateContainerBg = () => {
+        if (contBgTransparent.checked) {
+          np.setContainerBackground('transparent');
+          contBgPicker.disabled = true;
+        } else {
+          np.setContainerBackground(contBgPicker.value);
+          contBgPicker.disabled = false;
+        }
+      };
+      contBgPicker.addEventListener('input', updateContainerBg);
+      contBgTransparent.addEventListener('change', updateContainerBg);
+
+      widthInput.addEventListener('input', (e) => np.setSize(parseInt(e.target.value) || 600, null));
+      heightInput.addEventListener('input', (e) => np.setSize(null, parseInt(e.target.value) || 300));
+
+      resizableCheckbox.addEventListener('change', (e) => np.setResizable(e.target.checked));
+
+      fontFamilyInput.addEventListener('change', (e) => np.setFont(e.target.value, null));
+      fontSizeInput.addEventListener('input', (e) => np.setFont(null, parseInt(e.target.value) || 20));
+
+      const updatePadding = () => {
+        np.setLetterPadding(
+          parseInt(padYInput.value) || 0,
+          parseInt(padXInput.value) || 0
+        );
+      };
+      padYInput.addEventListener('input', updatePadding);
+      padXInput.addEventListener('input', updatePadding);
+
+      marginXInput.addEventListener('input', (e) => np.setLetterMargin(parseInt(e.target.value) || 0));
+
+      letterBorderRadiusInput.addEventListener('input', (e) => np.setLetterBorderRadius(parseInt(e.target.value) || 0));
+
+      const updateLetterBorder = () => {
+        np.setLetterBorder(
+          parseInt(letterBorderWidthInput.value) || 0,
+          letterBorderColorInput.value
+        );
+      };
+      letterBorderWidthInput.addEventListener('input', updateLetterBorder);
+      letterBorderColorInput.addEventListener('input', updateLetterBorder);
+
+      const updateBorder = () => {
+        np.setBorder(
+          parseInt(borderWidthInput.value) || 0,
+          borderColorInput.value,
+          parseInt(borderRadiusInput.value) || 0
+        );
+      };
+      borderWidthInput.addEventListener('input', updateBorder);
+      borderColorInput.addEventListener('input', updateBorder);
+      borderRadiusInput.addEventListener('input', updateBorder);
+
+      // Text synchronization
+      const currentTextArea = document.getElementById('current-text');
+
+      // Update textarea when notepad changes
+      np.on('change', () => {
+        console.log('Notepad changed, updating textarea');
+        currentTextArea.value = np.getPlainText();
+      });
+
+      // Update notepad when textarea changes
+      currentTextArea.addEventListener('input', (e) => {
+        console.log('Textarea changed, updating notepad');
+        np.setFromPlainText(e.target.value);
+      });
+
+      // Initialize textarea with current text
+      currentTextArea.value = np.getPlainText();
+      console.log('Initial text:', currentTextArea.value);
+
+      // JSON synchronization
+      const jsonOutput = document.getElementById('json-output');
+
+      // Update JSON when notepad changes
+      const updateJSON = () => {
+        const detailedData = np.getDetailedJSON();
+        jsonOutput.value = JSON.stringify(detailedData, null, 2);
+      };
+
+      np.on('change', updateJSON);
+
+      // Initialize JSON with current data
+      updateJSON();
+
+      // Expose for debug
+      window.np = np;
+
+      document.getElementById('export-img').addEventListener('click', () => {
+        np.exportAsImageWithP5('notepad-snapshot.png', { scale: 2 })
+          .then(() => console.log('Export ok'))
+          .catch(err => console.error('Export failed', err));
+      });
+    });
+  </script>
+  <button id="export-img">Guardar como PNG (p5)</button>
+
+  <div id="controls">
+    <table>
+      <thead>
+        <tr>
+          <th>Variable</th>
+          <th>Control</th>
+          <th>Método/Variable</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Fondo App</td>
+          <td><input id="bg-picker" type="color" value="#efefef"></td>
+          <td><code>setAppBackground()</code></td>
+        </tr>
+        <tr>
+          <td>Fondo Notepad</td>
+          <td>
+            <input id="cont-bg-picker" type="color" value="#ffffff">
+            <label style="font-size:12px; margin-left:8px;"><input id="cont-bg-transparent" type="checkbox">
+              Transparente</label>
+          </td>
+          <td><code>setContainerBackground()</code></td>
+        </tr>
+        <tr>
+          <td>Ancho (px)</td>
+          <td><input id="width-input" type="number" min="100" max="2000" value="600"></td>
+          <td><code>setSize(w, null)</code></td>
+        </tr>
+        <tr>
+          <td>Alto (px)</td>
+          <td><input id="height-input" type="number" min="50" max="2000" value="300"></td>
+          <td><code>setSize(null, h)</code></td>
+        </tr>
+        <tr>
+          <td>Redimensionable</td>
+          <td><input id="resizable-checkbox" type="checkbox"></td>
+          <td><code>setResizable()</code></td>
+        </tr>
+        <tr>
+          <td>Fuente</td>
+          <td>
+            <select id="font-family">
+              <option value="monospace">monospace</option>
+              <option value="Courier New, monospace">Courier New</option>
+              <option value="Georgia, serif">Georgia</option>
+              <option value="Arial, sans-serif">Arial</option>
+            </select>
+          </td>
+          <td><code>setFont(family, null)</code></td>
+        </tr>
+        <tr>
+          <td>Tamaño Fuente (px)</td>
+          <td><input id="font-size" type="number" min="10" max="100" value="20"></td>
+          <td><code>setFont(null, size)</code></td>
+        </tr>
+        <tr>
+          <td>Padding Y (px)</td>
+          <td><input id="pad-y" type="number" min="0" max="50" value="2"></td>
+          <td><code>setLetterPadding(y, x)</code></td>
+        </tr>
+        <tr>
+          <td>Padding X (px)</td>
+          <td><input id="pad-x" type="number" min="0" max="50" value="4"></td>
+          <td><code>setLetterPadding(y, x)</code></td>
+        </tr>
+        <tr>
+          <td>Margin X (px)</td>
+          <td><input id="margin-x" type="number" min="0" max="50" value="0"></td>
+          <td><code>setLetterMargin()</code></td>
+        </tr>
+        <tr>
+          <td>Borde Ancho (px)</td>
+          <td><input id="border-width" type="number" min="0" max="20" value="1"></td>
+          <td><code>setBorder(w, c, r)</code></td>
+        </tr>
+        <tr>
+          <td>Borde Color</td>
+          <td><input id="border-color" type="color" value="#cccccc"></td>
+          <td><code>setBorder(w, c, r)</code></td>
+        </tr>
+        <tr>
+          <td>Borde Radio (px)</td>
+          <td><input id="border-radius" type="number" min="0" max="50" value="0"></td>
+          <td><code>setBorder(w, c, r)</code></td>
+        </tr>
+        <tr>
+          <td>Radio Borde Letra (px)</td>
+          <td><input id="letter-border-radius" type="number" min="0" max="50" value="4"></td>
+          <td><code>setLetterBorderRadius()</code></td>
+        </tr>
+        <tr>
+          <td>Borde Letra Ancho (px)</td>
+          <td><input id="letter-border-width" type="number" min="0" max="10" value="0"></td>
+          <td><code>setLetterBorder(w, c)</code></td>
+        </tr>
+        <tr>
+          <td>Borde Letra Color</td>
+          <td><input id="letter-border-color" type="color" value="#000000"></td>
+          <td><code>setLetterBorder(w, c)</code></td>
+        </tr>
+        <tr>
+          <td>Texto Actual</td>
+          <td><textarea id="current-text" rows="3" style="width:100%; font-family:monospace;"></textarea></td>
+          <td><code>getPlainText() / setFromPlainText()</code></td>
+        </tr>
+        <tr>
+          <td>JSON Detallado</td>
+          <td><textarea id="json-output" rows="10" style="width:100%; font-family:monospace; font-size:11px;"
+              readonly></textarea></td>
+          <td><code>getDetailedJSON()</code></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+</body>
+
+</html>
