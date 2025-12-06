@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="utf-8" />
-  <title>Notepad - demo colores por nota</title>
+  <title>Notepad - Demo completo con características</title>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.11.11/lib/p5.js"></script>
   <script src="notepad.js"></script>
   <style>
@@ -14,18 +14,7 @@
     }
 
     #controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 12px;
-    }
-
-    #controls label {
-      font-size: 14px;
-      display: flex;
-      gap: 6px;
-      align-items: center;
+      margin-bottom: 30px;
     }
 
     .example-container {
@@ -38,20 +27,10 @@
       display: inline-block;
     }
 
-
-    .control-group {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    input[type="number"] {
-      width: 64px;
-    }
-
     button {
       padding: 6px 10px;
       cursor: pointer;
+      margin: 2px;
     }
 
     .note {
@@ -75,466 +54,741 @@
       color: white;
       font-weight: bold;
     }
+
+    /* Estilos para las tablas */
+    .features-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    .features-table th {
+      background-color: #f2f2f2;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .features-table th,
+    .features-table td {
+      border: 1px solid #ddd;
+      padding: 8px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .features-table tr:nth-child(even) {
+      background-color: #f9f9f9;
+    }
+
+    .features-table tr:hover {
+      background-color: #f5f5f5;
+    }
+
+    .category-header {
+      background-color: #e8f4fc !important;
+      font-weight: bold;
+      font-size: 1.1em;
+      border-left: 4px solid #2196F3;
+    }
+
+    .subcategory-header {
+      background-color: #f0f8ff !important;
+      font-weight: bold;
+      border-left: 4px solid #64B5F6;
+    }
+
+    .example-code {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+      padding: 4px 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      margin: 2px 0;
+    }
+
+    .test-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .test-button:hover {
+      background-color: #45a049;
+    }
+
+    .category-title {
+      color: #2196F3;
+      margin-top: 30px;
+      padding-bottom: 5px;
+      border-bottom: 2px solid #2196F3;
+    }
+
+    .feature-section {
+      margin-bottom: 40px;
+      background: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .control-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .control-group label {
+      min-width: 150px;
+    }
+
+    input[type="number"],
+    input[type="text"],
+    select,
+    textarea {
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+    }
+
+    textarea {
+      width: 100%;
+      font-family: monospace;
+    }
   </style>
 </head>
 
 <body>
-  <!---->
-  <style>
-    /* ... existing styles ... */
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      max-width: 600px;
-      margin-bottom: 20px;
-    }
-
-    th,
-    td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-    }
-
-    th {
-      background-color: #f2f2f2;
-    }
-  </style>
-
   <div id="sticky-header">
     <div id="app-header"
       style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
-      <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600;">NotepadDivColor</h1>
+      <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600;">NotepadDivColor - Características Completas
+      </h1>
     </div>
 
     <div class="note">
-      Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y
-      ver cómo cambian las letras.
+      Editor de texto con colores por caracter/nota. Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el
+      ratón.
     </div>
+
     <div class="example-container">
       <div id="notepad-wrap"></div>
     </div>
   </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const np = new Notepad({
         parent: document.getElementById('notepad-wrap'),
-        width: 'auto',
-        height: 'auto',
+        width: 800,
+        height: 200,
         noteColorMap: Notepad.assignRandomColors(),
-        containerPadding: '0px',
+        containerPadding: '10px',
         fontSize: 20,
         fontFamily: 'monospace',
         letterPadY: 2,
         letterPadX: 4,
         letterMarginX: 0,
-        insertionMode: 'letter' // Default mode
+        insertionMode: 'letter'
       });
 
-      // Initial defaults
+      // Configuración inicial
       np.setContainerBackground('#ffffff');
       np.setAppBackground('#efefef');
-      np.setBorder(0, null, null);
+      np.setBorder(1, '#ccc', 5);
 
-      np.insertText('26 NOVIEMBRE');
+      // Texto de ejemplo
+      np.insertText('26 NOVIEMBRE - Demo Notepad.js');
 
-      // Controls
-      const bgPicker = document.getElementById('bg-picker');
-      const contBgPicker = document.getElementById('cont-bg-picker');
-      const contBgTransparent = document.getElementById('cont-bg-transparent');
-      const widthInput = document.getElementById('width-input');
-      const heightInput = document.getElementById('height-input');
-      const resizableCheckbox = document.getElementById('resizable-checkbox');
-      const fontFamilyInput = document.getElementById('font-family');
-      const fontSizeInput = document.getElementById('font-size');
-      const containerPaddingInput = document.getElementById('container-padding');
-      const padYInput = document.getElementById('pad-y');
-      const padXInput = document.getElementById('pad-x');
-      const marginXInput = document.getElementById('margin-x');
-      const borderWidthInput = document.getElementById('border-width');
-      const borderColorInput = document.getElementById('border-color');
-      const borderRadiusInput = document.getElementById('border-radius');
-      const letterBorderRadiusInput = document.getElementById('letter-border-radius');
-      const letterBorderWidthInput = document.getElementById('letter-border-width');
-      const letterBorderColorInput = document.getElementById('letter-border-color');
-      const textColorInput = document.getElementById('text-color');
-      const highContrastCheckbox = document.getElementById('high-contrast');
-
-
-      // Event Listeners
-      bgPicker.addEventListener('input', (e) => np.setAppBackground(e.target.value));
-
-      const updateContainerBg = () => {
-        if (contBgTransparent.checked) {
-          np.setContainerBackground('transparent');
-          contBgPicker.disabled = true;
-        } else {
-          np.setContainerBackground(contBgPicker.value);
-          contBgPicker.disabled = false;
-        }
-      };
-      contBgPicker.addEventListener('input', updateContainerBg);
-      contBgTransparent.addEventListener('change', updateContainerBg);
-
-      widthInput.addEventListener('input', (e) => np.setSize(parseInt(e.target.value) || 600, null));
-      heightInput.addEventListener('input', (e) => np.setSize(null, parseInt(e.target.value) || 300));
-
-      resizableCheckbox.addEventListener('change', (e) => np.setResizable(e.target.checked));
-
-      fontFamilyInput.addEventListener('change', (e) => np.setFont(e.target.value, null));
-      fontSizeInput.addEventListener('input', (e) => np.setFont(null, parseInt(e.target.value) || 20));
-
-      const updateContainerPadding = () => {
-        const paddingValue = parseInt(containerPaddingInput.value) || 0;
-        np.setContainerPadding(`${paddingValue}px`);
-      };
-      containerPaddingInput.addEventListener('input', updateContainerPadding);
-
-      const updatePadding = () => {
-        np.setLetterPadding(
-          parseInt(padYInput.value) || 0,
-          parseInt(padXInput.value) || 0
-        );
-      };
-      padYInput.addEventListener('input', updatePadding);
-      padXInput.addEventListener('input', updatePadding);
-
-      marginXInput.addEventListener('input', (e) => np.setLetterMargin(parseInt(e.target.value) || 0));
-
-      letterBorderRadiusInput.addEventListener('input', (e) => np.setLetterBorderRadius(parseInt(e.target.value) || 0));
-
-      const updateLetterBorder = () => {
-        np.setLetterBorder(
-          parseInt(letterBorderWidthInput.value) || 0,
-          letterBorderColorInput.value
-        );
-      };
-      letterBorderWidthInput.addEventListener('input', updateLetterBorder);
-      letterBorderColorInput.addEventListener('input', updateLetterBorder);
-
-      textColorInput.addEventListener('input', (e) => {
-        if (!highContrastCheckbox.checked) {
-          np.setTextColor(e.target.value);
-        }
-      });
-
-      highContrastCheckbox.addEventListener('change', (e) => {
-        if (e.target.checked) {
-          textColorInput.disabled = true;
-          np.setTextColorFunc((char, index, bg) => {
-            return Notepad.getContrastColor(bg);
-          });
-        } else {
-          textColorInput.disabled = false;
-          np.setTextColorFunc(null);
-          np.setTextColor(textColorInput.value);
-        }
-      });
-
-      const updateBorder = () => {
-        np.setBorder(
-          parseInt(borderWidthInput.value) || 0,
-          borderColorInput.value,
-          parseInt(borderRadiusInput.value) || 0
-        );
-      };
-      borderWidthInput.addEventListener('input', updateBorder);
-      borderColorInput.addEventListener('input', updateBorder);
-      borderRadiusInput.addEventListener('input', updateBorder);
-
-      // Text synchronization
-      const currentTextArea = document.getElementById('current-text');
-
-      // Update textarea when notepad changes
-      np.on('change', () => {
-        console.log('Notepad changed, updating textarea');
-        currentTextArea.value = np.getPlainText();
-      });
-
-      // Update notepad when textarea changes
-      currentTextArea.addEventListener('input', (e) => {
-        console.log('Textarea changed, updating notepad');
-        np.setFromPlainText(e.target.value);
-      });
-
-      // Initialize textarea with current text
-      currentTextArea.value = np.getPlainText();
-      console.log('Initial text:', currentTextArea.value);
-
-      // JSON synchronization
-      const jsonOutput = document.getElementById('json-output');
-
-      // Update JSON when notepad changes
-      const updateJSON = () => {
-        const detailedData = np.getDetailedJSON();
-        jsonOutput.value = JSON.stringify(detailedData, null, 2);
-      };
-
-      np.on('change', updateJSON);
-
-      // Initialize JSON with current data
-      updateJSON();
-
-      // Expose for debug
+      // Exponer para consola
       window.np = np;
 
+      // Sincronización de texto
+      const currentTextArea = document.getElementById('current-text');
+      const jsonOutput = document.getElementById('json-output');
 
-
-      // New Controls Event Listeners
-      const editableCheckbox = document.getElementById('editable-checkbox');
-      const overwriteCheckbox = document.getElementById('overwrite-checkbox');
-      const btnRandom = document.getElementById('btn-random-colors');
-      const btnRainbow = document.getElementById('btn-rainbow-colors');
-      const btnExportTable = document.getElementById('btn-export-table');
-
-      if (editableCheckbox) editableCheckbox.addEventListener('change', (e) => np.setEditable(e.target.checked));
-      if (overwriteCheckbox) overwriteCheckbox.addEventListener('change', (e) => np.setOverwriteMode(e.target.checked));
-
-      if (btnRandom) btnRandom.addEventListener('click', () => {
-        console.log('Botón Aleatorio clickeado');
-        const map = Notepad.assignRandomColors();
-        console.log('Mapa generado:', map);
-        np.setNoteColorMap(map);
+      np.on('change', () => {
+        if (currentTextArea) currentTextArea.value = np.getPlainText();
+        if (jsonOutput) {
+          const detailedData = np.getDetailedJSON();
+          jsonOutput.value = JSON.stringify(detailedData, null, 2);
+        }
       });
 
-      if (btnRainbow) btnRainbow.addEventListener('click', () => {
-        console.log('Botón Arcoíris clickeado');
-        const map = Notepad.assignRainbowColors();
-        console.log('Mapa generado:', map);
-        np.setNoteColorMap(map);
+      if (currentTextArea) {
+        currentTextArea.value = np.getPlainText();
+        currentTextArea.addEventListener('input', (e) => {
+          np.setFromPlainText(e.target.value);
+        });
+      }
+
+      // Eventos de ejemplo para nuevas características
+      np.on('noteClick', (data) => {
+        console.log('Nota clickeada:', data);
       });
 
-      if (btnExportTable) btnExportTable.addEventListener('click', () => {
-        np.exportAsImageWithP5('notepad-snapshot.png', { scale: 2 });
+      np.on('containerClick', (data) => {
+        console.log('Contenedor clickeado:', data);
       });
 
-      // Insertion Mode Controls
-      const btnModeWord = document.getElementById('btn-mode-word');
-      const btnModeLetter = document.getElementById('btn-mode-letter');
-
-      // Initialize active button (letter mode is default)
-      if (btnModeLetter) btnModeLetter.classList.add('mode-button-active');
-
-      if (btnModeWord) btnModeWord.addEventListener('click', () => {
-        console.log('Modo Palabra activado');
-        np.setInsertionMode('word');
-        btnModeWord.classList.add('mode-button-active');
-        if (btnModeLetter) btnModeLetter.classList.remove('mode-button-active');
+      np.on('copy', (data) => {
+        console.log('Contenido copiado:', data);
       });
 
-      if (btnModeLetter) btnModeLetter.addEventListener('click', () => {
-        console.log('Modo Letra activado');
-        np.setInsertionMode('letter');
-        btnModeLetter.classList.add('mode-button-active');
-        if (btnModeWord) btnModeWord.classList.remove('mode-button-active');
+      np.on('paste', (data) => {
+        console.log('Contenido pegado:', data);
       });
+
+      // Inicializar JSON
+      if (jsonOutput) {
+        const detailedData = np.getDetailedJSON();
+        jsonOutput.value = JSON.stringify(detailedData, null, 2);
+      }
     });
   </script>
 
+  <div class="feature-section">
+    <h2 class="category-title">Controles Principales</h2>
 
-  <div id="controls">
-    <table>
+    <div class="control-group">
+      <label for="current-text">Texto Actual:</label>
+      <textarea id="current-text" rows="3" placeholder="Edita aquí y se sincronizará con el notepad..."></textarea>
+    </div>
+
+    <div class="control-group">
+      <label>Modo de Inserción:</label>
+      <button onclick="np.setInsertionMode('letter')">Letra</button>
+      <button onclick="np.setInsertionMode('word')">Palabra</button>
+    </div>
+
+    <div class="control-group">
+      <label>Colores:</label>
+      <button onclick="np.setNoteColorMap(Notepad.assignRandomColors())">Aleatorio</button>
+      <button onclick="np.setNoteColorMap(Notepad.assignRainbowColors())">Arcoíris</button>
+      <button onclick="np.setRainbowCycleMode(12)">Ciclo Arcoíris</button>
+    </div>
+
+    <div class="control-group">
+      <label>Exportar:</label>
+      <button onclick="np.exportAsImageWithP5('notepad-export.png')">PNG con p5.js</button>
+      <button onclick="np.exportAsImageCanvas('notepad-export.png')">PNG con Canvas</button>
+    </div>
+  </div>
+
+  <div class="feature-section">
+    <h2 class="category-title">Características Completas de Notepad.js</h2>
+
+    <table class="features-table">
       <thead>
         <tr>
-          <th>Variable</th>
-          <th>Control</th>
-          <th>Método/Variable</th>
+          <th width="20%">Categoría</th>
+          <th width="25%">Característica / Método</th>
+          <th width="35%">Descripción</th>
+          <th width="20%">Ejemplo / Prueba</th>
         </tr>
       </thead>
       <tbody>
-        <tr>
-          <td>Fondo App</td>
-          <td><input id="bg-picker" type="color" value="#efefef" /></td>
-          <td><code>setAppBackground()</code></td>
+        <!-- CONSTRUCTOR Y CONFIGURACIÓN -->
+        <tr class="category-header">
+          <td colspan="4">Constructor y Configuración</td>
         </tr>
-        <tr>
-          <td>Fondo Notepad</td>
-          <td>
-            <input id="cont-bg-picker" type="color" value="#ffffff" />
-            <label style="font-size:12px; margin-left:8px;"><input id="cont-bg-transparent" type="checkbox" />
-              Transparente</label>
-          </td>
-          <td><code>setContainerBackground()</code></td>
-        </tr>
-        <tr>
-          <td>Ancho (px)</td>
-          <td>
-            <input id="width-input" type="number" min="100" max="2000" value="100" />
-          </td>
-          <td><code>setSize(w, null)</code></td>
-        </tr>
-        <tr>
-          <td>Alto (px)</td>
-          <td>
-            <input id="height-input" type="number" min="50" max="2000" value="100" />
-          </td>
-          <td><code>setSize(null, h)</code></td>
-        </tr>
-        <tr>
-          <td>Redimensionable</td>
-          <td><input id="resizable-checkbox" type="checkbox" /></td>
-          <td><code>setResizable()</code></td>
-        </tr>
-        <tr>
-          <td>Padding del contenedor</td>
-          <td>
-            <input type="number" id="container-padding" value="10" min="0" step="1">
-          </td>
-          <td><code>setContainerPadding(padding)</code></td>
+
+        <tr class="subcategory-header">
+          <td colspan="4">Opciones del Constructor</td>
         </tr>
 
         <tr>
-          <td>Fuente</td>
+          <td>Constructor</td>
+          <td><code>new Notepad(options)</code></td>
+          <td>Crea una nueva instancia del notepad con opciones configurables</td>
           <td>
-            <select id="font-family">
-              <option value="monospace">monospace</option>
-              <option value="Courier New, monospace">Courier New</option>
-              <option value="Georgia, serif">Georgia</option>
-              <option value="Arial, sans-serif">Arial</option>
-            </select>
+            <div class="example-code">new Notepad({<br>&nbsp;&nbsp;width: 600,<br>&nbsp;&nbsp;height: 300<br>})</div>
           </td>
-          <td><code>setFont(family, null)</code></td>
         </tr>
+
         <tr>
-          <td>Tamaño Fuente (px)</td>
+          <td>Configuración</td>
+          <td><code>width, height</code></td>
+          <td>Tamaño del contenedor en píxeles</td>
+          <td><button class="test-button" onclick="np.setSize(600, 200)">600x200</button></td>
+        </tr>
+
+        <tr>
+          <td>Configuración</td>
+          <td><code>fontSize, fontFamily</code></td>
+          <td>Tamaño y familia de fuente</td>
+          <td><button class="test-button" onclick="np.setFont('Arial', 24)">Arial 24px</button></td>
+        </tr>
+
+        <tr>
+          <td>Configuración</td>
+          <td><code>insertionMode</code></td>
+          <td>Modo de inserción: 'letter' o 'word'</td>
           <td>
-            <input id="font-size" type="number" min="10" max="100" value="20" />
+            <button class="test-button" onclick="np.setInsertionMode('letter')">Letra</button>
+            <button class="test-button" onclick="np.setInsertionMode('word')">Palabra</button>
           </td>
-          <td><code>setFont(null, size)</code></td>
         </tr>
+
         <tr>
-          <td>Padding Y (px)</td>
+          <td>Configuración</td>
+          <td><code>noteColorMap, colorMap</code></td>
+          <td>Mapa de colores para caracteres/notas</td>
+          <td><button class="test-button" onclick="np.setNoteColorMap({'a':'red','b':'blue'})">Mapa personal</button>
+          </td>
+        </tr>
+
+        <!-- MÉTODOS DE TEXTO -->
+        <tr class="category-header">
+          <td colspan="4">Métodos de Manipulación de Texto</td>
+        </tr>
+
+        <tr>
+          <td>Inserción</td>
+          <td><code>insertText(text)</code></td>
+          <td>Inserta texto en la posición actual del cursor</td>
+          <td><button class="test-button" onclick="np.insertText('Hola Mundo')">Insertar</button></td>
+        </tr>
+
+        <tr>
+          <td>Inserción</td>
+          <td><code>insertTextAsWordBlocks(text, options)</code></td>
+          <td>Inserta texto como bloques de palabras con colores</td>
           <td>
-            <input id="pad-y" type="number" min="0" max="50" value="2" />
+            <button class="test-button" onclick="np.insertTextAsWordBlocks('Texto en bloques')">Insertar
+              bloques</button>
           </td>
-          <td><code>setLetterPadding(y, x)</code></td>
         </tr>
+
         <tr>
-          <td>Padding X (px)</td>
+          <td>Obtención</td>
+          <td><code>getPlainText()</code></td>
+          <td>Devuelve el texto plano sin formato</td>
           <td>
-            <input id="pad-x" type="number" min="0" max="50" value="4" />
+            <button class="test-button" onclick="alert(np.getPlainText())">Ver texto</button>
           </td>
-          <td><code>setLetterPadding(y, x)</code></td>
         </tr>
+
         <tr>
-          <td>Margin X (px)</td>
+          <td>Obtención</td>
+          <td><code>getRichContent()</code></td>
+          <td>Devuelve array con texto y colores</td>
           <td>
-            <input id="margin-x" type="number" min="0" max="50" value="0" />
+            <button class="test-button" onclick="console.log(np.getRichContent())">Ver en consola</button>
           </td>
-          <td><code>setLetterMargin()</code></td>
         </tr>
+
         <tr>
-          <td>Borde Ancho (px)</td>
-          <td>
-            <input id="border-width" type="number" min="0" max="20" value="0" />
-          </td>
-          <td><code>setBorder(w, c, r)</code></td>
-        </tr>
-        <tr>
-          <td>Borde Color</td>
-          <td><input id="border-color" type="color" value="#cccccc" /></td>
-          <td><code>setBorder(w, c, r)</code></td>
-        </tr>
-        <tr>
-          <td>Borde Radio (px)</td>
-          <td>
-            <input id="border-radius" type="number" min="0" max="50" value="0" />
-          </td>
-          <td><code>setBorder(w, c, r)</code></td>
-        </tr>
-        <tr>
-          <td>Radio Borde Letra (px)</td>
-          <td>
-            <input id="letter-border-radius" type="number" min="0" max="50" value="4" />
-          </td>
-          <td><code>setLetterBorderRadius()</code></td>
-        </tr>
-        <tr>
-          <td>Borde Letra Ancho (px)</td>
-          <td>
-            <input id="letter-border-width" type="number" min="0" max="10" value="0" />
-          </td>
-          <td><code>setLetterBorder(w, c)</code></td>
-        </tr>
-        <tr>
-          <td>Borde Letra Color</td>
-          <td>
-            <input id="letter-border-color" type="color" value="#000000" />
-          </td>
-          <td><code>setLetterBorder(w, c)</code></td>
-        </tr>
-        <tr>
-          <td>Color Texto</td>
-          <td>
-            <input id="text-color" type="color" value="#ffffff" />
-            <label style="font-size:12px; margin-left:8px;"><input id="high-contrast" type="checkbox" />
-              Alto Contraste (B/N)</label>
-          </td>
-          <td><code>setTextColor(color) / setTextColorFunc(fn)</code></td>
-        </tr>
-        <tr>
-          <td>Texto Actual</td>
-          <td>
-            <textarea id="current-text" rows="3" style="width:100%; font-family:monospace;"></textarea>
-          </td>
-          <td><code>getPlainText() / setFromPlainText()</code></td>
-        </tr>
-        <tr>
-          <td>JSON Detallado</td>
-          <td>
-            <textarea id="json-output" rows="10" style="width:100%; font-family:monospace; font-size:11px;"
-              readonly></textarea>
-          </td>
+          <td>Obtención</td>
           <td><code>getDetailedJSON()</code></td>
-        </tr>
-        <tr>
-          <td>Editable</td>
-          <td><input id="editable-checkbox" type="checkbox" checked /></td>
-          <td><code>setEditable(bool)</code></td>
-        </tr>
-        <tr>
-          <td>Modo Sobreescribir</td>
-          <td><input id="overwrite-checkbox" type="checkbox" /></td>
-          <td><code>setOverwriteMode(bool)</code></td>
-        </tr>
-        <tr>
-          <td>Modo de Inserción</td>
+          <td>Devuelve JSON detallado de cada caracter</td>
           <td>
-            <button id="btn-mode-word">Palabra</button>
-            <button id="btn-mode-letter">Letra</button>
+            <button class="test-button" onclick="console.log(np.getDetailedJSON())">Ver en consola</button>
           </td>
-          <td><code>setInsertionMode('word' | 'letter')</code></td>
         </tr>
+
         <tr>
-          <td>Asignar Colores (Estático)</td>
+          <td>Establecimiento</td>
+          <td><code>setFromPlainText(text)</code></td>
+          <td>Reemplaza contenido con texto plano</td>
+          <td><button class="test-button" onclick="np.setFromPlainText('Nuevo texto')">Establecer</button></td>
+        </tr>
+
+        <tr>
+          <td>Establecimiento</td>
+          <td><code>setFromRichContent(array)</code></td>
+          <td>Reemplaza contenido con array enriquecido</td>
           <td>
-            <button id="btn-random-colors">Aleatorio</button>
-            <button id="btn-rainbow-colors">Arcoíris</button>
+            <button class="test-button"
+              onclick="np.setFromRichContent([{text:'H',color:'red'},{text:'i',color:'blue'}])">Establecer</button>
           </td>
-          <td><code>Notepad.assignRandomColors()</code><br><code>Notepad.assignRainbowColors()</code></td>
         </tr>
-        <tr>
-          <td>Helpers Color (Estático)</td>
-          <td>(Ver lógica Alto Contraste)</td>
-          <td><code>Notepad.getContrastColor()</code><br><code>Notepad.getComplementaryColor()</code></td>
+
+        <!-- PORTAPAPELES -->
+        <tr class="subcategory-header">
+          <td colspan="4">Portapapeles y Selección</td>
         </tr>
+
         <tr>
-          <td>Generadores (Estático)</td>
-          <td>-</td>
-          <td><code>Notepad.generateRandomColors()</code><br><code>Notepad.generateRainbowColors()</code></td>
+          <td>Portapapeles</td>
+          <td><code>copy()</code></td>
+          <td>Copia la selección actual al portapapeles</td>
+          <td><button class="test-button" onclick="np.copy()">Copiar selección</button></td>
         </tr>
+
         <tr>
-          <td>Exportar</td>
-          <td><button id="btn-export-table">PNG</button></td>
-          <td><code>exportAsImageWithP5()</code></td>
+          <td>Portapapeles</td>
+          <td><code>cut()</code></td>
+          <td>Corta la selección actual</td>
+          <td><button class="test-button" onclick="np.cut()">Cortar selección</button></td>
+        </tr>
+
+        <tr>
+          <td>Portapapeles</td>
+          <td><code>paste()</code></td>
+          <td>Pega del portapapeles</td>
+          <td><button class="test-button" onclick="np.paste()">Pegar</button></td>
+        </tr>
+
+        <!-- COLORES Y ESTILOS -->
+        <tr class="category-header">
+          <td colspan="4">Colores y Estilos</td>
+        </tr>
+
+        <tr>
+          <td>Colores</td>
+          <td><code>setNoteColorMap(map)</code></td>
+          <td>Establece mapa de colores para notas</td>
+          <td><button class="test-button"
+              onclick="np.setNoteColorMap({'a':'#ff0000','b':'#00ff00'})">Rojo/Verde</button></td>
+        </tr>
+
+        <tr>
+          <td>Colores</td>
+          <td><code>setNoteColor(note, color)</code></td>
+          <td>Establece color para una nota específica</td>
+          <td><button class="test-button" onclick="np.setNoteColor('a', 'purple')">'a' = púrpura</button></td>
+        </tr>
+
+        <tr>
+          <td>Colores</td>
+          <td><code>setColorFunc(func)</code></td>
+          <td>Establece función personalizada para colores</td>
+          <td>
+            <button class="test-button"
+              onclick="np.setColorFunc((ch, idx) => idx % 2 ? 'red' : 'blue')">Alternar</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Colores</td>
+          <td><code>setRainbowCycleMode(steps)</code></td>
+          <td>Activa modo ciclo arcoíris</td>
+          <td><button class="test-button" onclick="np.setRainbowCycleMode(8)">Arcoíris 8 pasos</button></td>
+        </tr>
+
+        <tr>
+          <td>Colores</td>
+          <td><code>recolor()</code></td>
+          <td>Vuelve a aplicar colores según reglas actuales</td>
+          <td><button class="test-button" onclick="np.recolor()">Recolorizar</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setLetterPadding(y, x)</code></td>
+          <td>Establece padding interno de las letras</td>
+          <td><button class="test-button" onclick="np.setLetterPadding(5, 10)">Padding 5x10</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setLetterMargin(margin)</code></td>
+          <td>Establece margen entre letras</td>
+          <td><button class="test-button" onclick="np.setLetterMargin(3)">Margen 3px</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setLetterBorder(width, color)</code></td>
+          <td>Establece borde de las letras</td>
+          <td><button class="test-button" onclick="np.setLetterBorder(2, '#333')">Borde 2px</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setLetterBorderRadius(radius)</code></td>
+          <td>Establece radio de borde de letras</td>
+          <td><button class="test-button" onclick="np.setLetterBorderRadius(8)">Radio 8px</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setTextColor(color)</code></td>
+          <td>Establece color del texto</td>
+          <td><button class="test-button" onclick="np.setTextColor('#000000')">Texto negro</button></td>
+        </tr>
+
+        <tr>
+          <td>Estilos</td>
+          <td><code>setTextColorFunc(func)</code></td>
+          <td>Función personalizada para color de texto</td>
+          <td>
+            <button class="test-button"
+              onclick="np.setTextColorFunc((ch, idx, bg) => Notepad.getContrastColor(bg))">Contraste automático</button>
+          </td>
+        </tr>
+
+        <!-- CONTENEDOR Y APARIENCIA -->
+        <tr class="subcategory-header">
+          <td colspan="4">Contenedor y Apariencia</td>
+        </tr>
+
+        <tr>
+          <td>Contenedor</td>
+          <td><code>setAppBackground(color)</code></td>
+          <td>Establece fondo de toda la aplicación</td>
+          <td><button class="test-button" onclick="np.setAppBackground('#e0f7fa')">Fondo celeste</button></td>
+        </tr>
+
+        <tr>
+          <td>Contenedor</td>
+          <td><code>setContainerBackground(color)</code></td>
+          <td>Establece fondo del contenedor</td>
+          <td><button class="test-button" onclick="np.setContainerBackground('#fff8e1')">Fondo amarillo claro</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Contenedor</td>
+          <td><code>setContainerPadding(padding)</code></td>
+          <td>Establece padding del contenedor</td>
+          <td><button class="test-button" onclick="np.setContainerPadding('20px')">Padding 20px</button></td>
+        </tr>
+
+        <tr>
+          <td>Contenedor</td>
+          <td><code>setBorder(width, color, radius)</code></td>
+          <td>Establece borde del contenedor</td>
+          <td><button class="test-button" onclick="np.setBorder(3, '#2196F3', 10)">Borde azul</button></td>
+        </tr>
+
+        <tr>
+          <td>Contenedor</td>
+          <td><code>setResizable(enabled)</code></td>
+          <td>Permite redimensionar contenedor</td>
+          <td>
+            <button class="test-button" onclick="np.setResizable(true)">Redimensionable ON</button>
+            <button class="test-button" onclick="np.setResizable(false)">OFF</button>
+          </td>
+        </tr>
+
+        <!-- MODO DE EDICIÓN -->
+        <tr class="subcategory-header">
+          <td colspan="4">Modo de Edición</td>
+        </tr>
+
+        <tr>
+          <td>Edición</td>
+          <td><code>setEditable(enabled)</code></td>
+          <td>Habilita/deshabilita edición</td>
+          <td>
+            <button class="test-button" onclick="np.setEditable(false)">No editable</button>
+            <button class="test-button" onclick="np.setEditable(true)">Editable</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Edición</td>
+          <td><code>setOverwriteMode(enabled)</code></td>
+          <td>Activa modo sobrescritura</td>
+          <td>
+            <button class="test-button" onclick="np.setOverwriteMode(true)">Sobrescritura ON</button>
+            <button class="test-button" onclick="np.setOverwriteMode(false)">OFF</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Edición</td>
+          <td><code>focus()</code></td>
+          <td>Enfoca el notepad para escribir</td>
+          <td><button class="test-button" onclick="np.focus()">Enfocar</button></td>
+        </tr>
+
+        <!-- EXPORTACIÓN -->
+        <tr class="category-header">
+          <td colspan="4">Exportación</td>
+        </tr>
+
+        <tr>
+          <td>Exportación</td>
+          <td><code>exportAsImageWithP5(filename, opts)</code></td>
+          <td>Exporta a PNG usando p5.js (preferido)</td>
+          <td><button class="test-button" onclick="np.exportAsImageWithP5('notepad-p5.png')">Exportar PNG (p5)</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Exportación</td>
+          <td><code>exportAsImageCanvas(filename, opts)</code></td>
+          <td>Exporta a PNG usando Canvas (fallback)</td>
+          <td><button class="test-button" onclick="np.exportAsImageCanvas('notepad-canvas.png')">Exportar PNG
+              (canvas)</button></td>
+        </tr>
+
+        <!-- EVENTOS -->
+        <tr class="category-header">
+          <td colspan="4">Eventos</td>
+        </tr>
+
+        <tr>
+          <td>Eventos</td>
+          <td><code>on(event, handler)</code></td>
+          <td>Registra manejador de eventos</td>
+          <td>
+            <div class="example-code">np.on('change', () => {<br>&nbsp;&nbsp;console.log('Cambió')<br>})</div>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Eventos</td>
+          <td><code>'change'</code></td>
+          <td>Se dispara cuando cambia el contenido</td>
+          <td>Ver consola al modificar</td>
+        </tr>
+
+        <tr>
+          <td>Eventos</td>
+          <td><code>'noteClick'</code></td>
+          <td>Al hacer clic en una nota/caracter</td>
+          <td>Ver consola al clickar letras</td>
+        </tr>
+
+        <tr>
+          <td>Eventos</td>
+          <td><code>'containerClick'</code></td>
+          <td>Al hacer clic en el contenedor</td>
+          <td>Ver consola al clickar fondo</td>
+        </tr>
+
+        <tr>
+          <td>Eventos</td>
+          <td><code>'copy', 'paste'</code></td>
+          <td>Al copiar o pegar contenido</td>
+          <td>Ver consola al copiar/pegar</td>
+        </tr>
+
+        <!-- MÉTODOS ESTÁTICOS -->
+        <tr class="category-header">
+          <td colspan="4">Métodos Estáticos</td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.assignRandomColors()</code></td>
+          <td>Genera mapa de colores aleatorios</td>
+          <td>
+            <button class="test-button" onclick="console.log(Notepad.assignRandomColors())">Ver en consola</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.assignRainbowColors()</code></td>
+          <td>Genera mapa de colores arcoíris</td>
+          <td>
+            <button class="test-button" onclick="console.log(Notepad.assignRainbowColors())">Ver en consola</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.generateRainbowColors(steps)</code></td>
+          <td>Genera array de colores arcoíris</td>
+          <td>
+            <button class="test-button" onclick="console.log(Notepad.generateRainbowColors(8))">8 colores</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.generateRandomColors(steps)</code></td>
+          <td>Genera array de colores aleatorios</td>
+          <td>
+            <button class="test-button" onclick="console.log(Notepad.generateRandomColors(5))">5 colores</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.getContrastColor(color)</code></td>
+          <td>Devuelve color de contraste (blanco/negro)</td>
+          <td>
+            <button class="test-button" onclick="alert(Notepad.getContrastColor('#ff0000'))">Contraste para
+              rojo</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.getComplementaryColor(color)</code></td>
+          <td>Devuelve color complementario</td>
+          <td>
+            <button class="test-button" onclick="alert(Notepad.getComplementaryColor('#ff0000'))">Complementario
+              rojo</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Estático</td>
+          <td><code>Notepad.ALPHABET</code></td>
+          <td>Array de letras/números por defecto</td>
+          <td>
+            <button class="test-button" onclick="console.log(Notepad.ALPHABET)">Ver array</button>
+          </td>
+        </tr>
+
+        <!-- UTILIDADES -->
+        <tr class="category-header">
+          <td colspan="4">Utilidades</td>
+        </tr>
+
+        <tr>
+          <td>Utilidad</td>
+          <td><code>setSize(width, height)</code></td>
+          <td>Cambia tamaño del contenedor</td>
+          <td><button class="test-button" onclick="np.setSize(400, 150)">400x150</button></td>
+        </tr>
+
+        <tr>
+          <td>Utilidad</td>
+          <td><code>setFont(family, size)</code></td>
+          <td>Cambia fuente y tamaño</td>
+          <td><button class="test-button" onclick="np.setFont('Georgia', 18)">Georgia 18px</button></td>
+        </tr>
+
+        <tr>
+          <td>Utilidad</td>
+          <td><code>destroy()</code></td>
+          <td>Destruye instancia y limpia eventos</td>
+          <td><button class="test-button" onclick="if(confirm('¿Destruir notepad?')) np.destroy()">Destruir</button>
+          </td>
+        </tr>
+
+        <tr>
+          <td>Utilidad</td>
+          <td><code>resetSequence()</code></td>
+          <td>Reinicia índice de secuencia de colores</td>
+          <td><button class="test-button" onclick="np.resetSequence()">Reiniciar secuencia</button></td>
         </tr>
       </tbody>
     </table>
   </div>
-  <a href="examples.html" target="_blank">Ejemplos</a>
 
+  <div class="feature-section">
+    <h2 class="category-title">JSON Detallado de Contenido</h2>
+    <p>Este JSON muestra la estructura detallada de cada caracter en el notepad, incluyendo colores, estilos y posición.
+    </p>
+    <textarea id="json-output" rows="15" readonly></textarea>
+  </div>
 
-
+  <div class="note" style="margin-top: 30px; padding: 15px; background: #e8f5e9; border-radius: 5px;">
+    <strong>Consejos de uso:</strong>
+    <ul>
+      <li>Haz clic en los botones "Ver en consola" para ver resultados detallados en la consola del navegador (F12)</li>
+      <li>Usa Ctrl+C, Ctrl+X, Ctrl+V para copiar, cortar y pegar (o los botones en la tabla)</li>
+      <li>Haz doble clic en una letra para editar dentro de ella</li>
+      <li>Arrastra para seleccionar texto</li>
+      <li>Prueba los diferentes modos de inserción (letra vs palabra)</li>
+      <li>Exporta imágenes PNG con diferentes opciones de escala y fondo</li>
+    </ul>
+  </div>
 </body>
 
 </html>
