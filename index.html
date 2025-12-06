@@ -60,9 +60,21 @@
       margin-top: 8px;
     }
 
-    #notepad-wrap {
-      margin: 0 auto;
-      display: inline-block;
+    #sticky-header {
+      position: sticky;
+      top: 0;
+      background-color: #efefef;
+      z-index: 1000;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ccc;
+      margin-bottom: 20px;
+    }
+
+    .mode-button-active {
+      background-color: #4CAF50;
+      color: white;
+      font-weight: bold;
+    }
   </style>
 </head>
 
@@ -89,51 +101,40 @@
     }
   </style>
 
-  <div class="note">
-    Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y
-    ver cómo cambian las letras.
+  <div id="sticky-header">
+    <div id="app-header"
+      style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+      <h1 style="margin: 0; font-size: 28px; color: #333; font-weight: 600;">NotepadDivColor</h1>
+    </div>
+
+    <div class="note">
+      Prueba a escribir, pulsar Enter (nueva línea), seleccionar con el ratón y
+      ver cómo cambian las letras.
+    </div>
+    <div class="example-container">
+      <div id="notepad-wrap"></div>
+    </div>
   </div>
-  <div class="example-container">
-    <div id="notepad-wrap"></div>
-  </div>
-  <script>
-    let alphabetMap = {};
-    const alfabeto = "abcdefghijklmnopqrstuvwxyz1234567890".split("");
-    function randomRGB() {
-      let r = Math.floor(Math.random() * 256);
-      let g = Math.floor(Math.random() * 256);
-      let b = Math.floor(Math.random() * 256);
-      return `rgb(${r},${g},${b})`;
-    }
-
-
-
-    function sendi(letri) {
-      let alfi = []
-      letri.forEach(letra => {
-        alfi[letra] = randomRGB();
-      });
-      return alfi
-    }
-  </script>
-
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const np = new Notepad({
         parent: document.getElementById('notepad-wrap'),
         width: 'auto',
         height: 'auto',
-        noteColorMap: sendi(alfabeto),
-        containerPadding: '0px'
+        noteColorMap: Notepad.assignRandomColors(),
+        containerPadding: '0px',
+        fontSize: 20,
+        fontFamily: 'monospace',
+        letterPadY: 2,
+        letterPadX: 4,
+        letterMarginX: 0,
+        insertionMode: 'letter' // Default mode
       });
 
       // Initial defaults
       np.setContainerBackground('#ffffff');
       np.setAppBackground('#efefef');
-      np.setFont('monospace', 20);
-      np.setLetterPadding(2, 4);
-      np.setLetterMargin(0);
-      np.setBorder(0)
+      np.setBorder(0, null, null);
 
       np.insertText('26 NOVIEMBRE');
 
@@ -156,6 +157,8 @@
       const letterBorderRadiusInput = document.getElementById('letter-border-radius');
       const letterBorderWidthInput = document.getElementById('letter-border-width');
       const letterBorderColorInput = document.getElementById('letter-border-color');
+      const textColorInput = document.getElementById('text-color');
+      const highContrastCheckbox = document.getElementById('high-contrast');
 
 
       // Event Listeners
@@ -209,6 +212,25 @@
       letterBorderWidthInput.addEventListener('input', updateLetterBorder);
       letterBorderColorInput.addEventListener('input', updateLetterBorder);
 
+      textColorInput.addEventListener('input', (e) => {
+        if (!highContrastCheckbox.checked) {
+          np.setTextColor(e.target.value);
+        }
+      });
+
+      highContrastCheckbox.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          textColorInput.disabled = true;
+          np.setTextColorFunc((char, index, bg) => {
+            return Notepad.getContrastColor(bg);
+          });
+        } else {
+          textColorInput.disabled = false;
+          np.setTextColorFunc(null);
+          np.setTextColor(textColorInput.value);
+        }
+      });
+
       const updateBorder = () => {
         np.setBorder(
           parseInt(borderWidthInput.value) || 0,
@@ -256,14 +278,59 @@
       // Expose for debug
       window.np = np;
 
-      document.getElementById('export-img').addEventListener('click', () => {
-        np.exportAsImageWithP5('notepad-snapshot.png', { scale: 2 })
-          .then(() => console.log('Export ok'))
-          .catch(err => console.error('Export failed', err));
+
+
+      // New Controls Event Listeners
+      const editableCheckbox = document.getElementById('editable-checkbox');
+      const overwriteCheckbox = document.getElementById('overwrite-checkbox');
+      const btnRandom = document.getElementById('btn-random-colors');
+      const btnRainbow = document.getElementById('btn-rainbow-colors');
+      const btnExportTable = document.getElementById('btn-export-table');
+
+      if (editableCheckbox) editableCheckbox.addEventListener('change', (e) => np.setEditable(e.target.checked));
+      if (overwriteCheckbox) overwriteCheckbox.addEventListener('change', (e) => np.setOverwriteMode(e.target.checked));
+
+      if (btnRandom) btnRandom.addEventListener('click', () => {
+        console.log('Botón Aleatorio clickeado');
+        const map = Notepad.assignRandomColors();
+        console.log('Mapa generado:', map);
+        np.setNoteColorMap(map);
+      });
+
+      if (btnRainbow) btnRainbow.addEventListener('click', () => {
+        console.log('Botón Arcoíris clickeado');
+        const map = Notepad.assignRainbowColors();
+        console.log('Mapa generado:', map);
+        np.setNoteColorMap(map);
+      });
+
+      if (btnExportTable) btnExportTable.addEventListener('click', () => {
+        np.exportAsImageWithP5('notepad-snapshot.png', { scale: 2 });
+      });
+
+      // Insertion Mode Controls
+      const btnModeWord = document.getElementById('btn-mode-word');
+      const btnModeLetter = document.getElementById('btn-mode-letter');
+
+      // Initialize active button (letter mode is default)
+      if (btnModeLetter) btnModeLetter.classList.add('mode-button-active');
+
+      if (btnModeWord) btnModeWord.addEventListener('click', () => {
+        console.log('Modo Palabra activado');
+        np.setInsertionMode('word');
+        btnModeWord.classList.add('mode-button-active');
+        if (btnModeLetter) btnModeLetter.classList.remove('mode-button-active');
+      });
+
+      if (btnModeLetter) btnModeLetter.addEventListener('click', () => {
+        console.log('Modo Letra activado');
+        np.setInsertionMode('letter');
+        btnModeLetter.classList.add('mode-button-active');
+        if (btnModeWord) btnModeWord.classList.remove('mode-button-active');
       });
     });
   </script>
-  <button id="export-img">Guardar como PNG (p5)</button>
+
 
   <div id="controls">
     <table>
@@ -397,6 +464,15 @@
           <td><code>setLetterBorder(w, c)</code></td>
         </tr>
         <tr>
+          <td>Color Texto</td>
+          <td>
+            <input id="text-color" type="color" value="#ffffff" />
+            <label style="font-size:12px; margin-left:8px;"><input id="high-contrast" type="checkbox" />
+              Alto Contraste (B/N)</label>
+          </td>
+          <td><code>setTextColor(color) / setTextColorFunc(fn)</code></td>
+        </tr>
+        <tr>
           <td>Texto Actual</td>
           <td>
             <textarea id="current-text" rows="3" style="width:100%; font-family:monospace;"></textarea>
@@ -411,10 +487,54 @@
           </td>
           <td><code>getDetailedJSON()</code></td>
         </tr>
+        <tr>
+          <td>Editable</td>
+          <td><input id="editable-checkbox" type="checkbox" checked /></td>
+          <td><code>setEditable(bool)</code></td>
+        </tr>
+        <tr>
+          <td>Modo Sobreescribir</td>
+          <td><input id="overwrite-checkbox" type="checkbox" /></td>
+          <td><code>setOverwriteMode(bool)</code></td>
+        </tr>
+        <tr>
+          <td>Modo de Inserción</td>
+          <td>
+            <button id="btn-mode-word">Palabra</button>
+            <button id="btn-mode-letter">Letra</button>
+          </td>
+          <td><code>setInsertionMode('word' | 'letter')</code></td>
+        </tr>
+        <tr>
+          <td>Asignar Colores (Estático)</td>
+          <td>
+            <button id="btn-random-colors">Aleatorio</button>
+            <button id="btn-rainbow-colors">Arcoíris</button>
+          </td>
+          <td><code>Notepad.assignRandomColors()</code><br><code>Notepad.assignRainbowColors()</code></td>
+        </tr>
+        <tr>
+          <td>Helpers Color (Estático)</td>
+          <td>(Ver lógica Alto Contraste)</td>
+          <td><code>Notepad.getContrastColor()</code><br><code>Notepad.getComplementaryColor()</code></td>
+        </tr>
+        <tr>
+          <td>Generadores (Estático)</td>
+          <td>-</td>
+          <td><code>Notepad.generateRandomColors()</code><br><code>Notepad.generateRainbowColors()</code></td>
+        </tr>
+        <tr>
+          <td>Exportar</td>
+          <td><button id="btn-export-table">PNG</button></td>
+          <td><code>exportAsImageWithP5()</code></td>
+        </tr>
       </tbody>
     </table>
   </div>
-  <a href="examples.html">Examples</a>
+  <a href="examples.html" target="_blank">Ejemplos</a>
+
+
+
 </body>
 
 </html>
