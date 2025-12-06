@@ -1,65 +1,58 @@
-/* notepad.js
-   Full Notepad implementation (single-file) with:
-   - per-character colored spans
-   - noteColorMap / colorMap / colorSequence / colorFunc
-   - selection (click, drag, shift+click), copy/cut/paste
-   - newline support (Enter -> <br>)
-   - hit-testing that handles wrapped lines
-   - API to change app/container background
-   - exportAsImageWithP5 (prefers p5.createGraphics) with automatic canvas fallback
-   - APIs to control font, letter padding and letter margin (affect existing and future letters)
-   - NOTE: default fallback color array set to ['transparent'] if not provided
-   - Inline font-family / font-size removed from individual spans so setFont(...) affects all letters via inheritance
-*/
-
+/* notepad.js - Versión Combinada Completa (55KB + 22KB) */
 class Notepad {
   constructor(options = {}) {
-    this.parent = options.parent || document.body;
-    this.width = options.width || 600;
-    this.height = options.height || 300;
-    this.fontSize = options.fontSize || 20;
-    this.fontFamily = options.fontFamily || 'monospace';
-    // Default colors fallback (allow transparent spaces)
-    this.colors = (options.colors && options.colors.length) ? options.colors : ['transparent'];
-    this._containerPadding = (typeof options.containerPadding !== 'undefined') ? options.containerPadding : '0px';
-    // Color rules
-    this.noteColorMap = options.noteColorMap || null;
-    this.colorMap = options.colorMap || null;
-    this.colorSequence = options.colorSequence || null;
-    this.colorFunc = options.colorFunc || null;
-    this._seqIndex = 0;
+    // Configuración por defecto (inspirada en versión simplificada)
+    const defaults = {
+      parent: document.body,
+      width: 600,
+      height: 300,
+      fontSize: 20,
+      fontFamily: 'monospace',
+      colors: ['transparent'],
+      noteColorMap: {},
+      colorMap: {},
+      colorSequence: null,
+      colorFunc: null,
+      insertionMode: 'word',
+      letterPadY: 2,
+      letterPadX: 4,
+      letterMarginX: 0,
+      letterBorderRadius: 4,
+      letterBorderWidth: 0,
+      letterBorderColor: '#000000',
+      textColor: '#ffffff',
+      textColorFunc: null,
+      containerPadding: '0px',
+      editable: true,
+      overwriteMode: false
+    };
 
-    // Insertion mode: 'letter-spaced', 'letter', or 'word'
-    // - 'letter-spaced': each letter in separate span with reduced spacing
-    // - 'letter': each letter in separate span with normal spacing
-    // - 'word': group characters into words (split by spaces)
-    this.insertionMode = options.insertionMode || 'word';
+    // Merge de opciones
+    this.opts = { ...defaults, ...options };
 
-    // Spacing / font defaults for letters (can be changed with API)
-    this._letterPadY = (typeof options.letterPadY !== 'undefined') ? options.letterPadY : 2;
-    this._letterPadX = (typeof options.letterPadX !== 'undefined') ? options.letterPadX : 4;
-    this._letterMarginX = (typeof options.letterMarginX !== 'undefined') ? options.letterMarginX : 0; // px or string
-    this._letterBorderRadius = (typeof options.letterBorderRadius !== 'undefined') ? options.letterBorderRadius : 4;
-    this._letterBorderWidth = (typeof options.letterBorderWidth !== 'undefined') ? options.letterBorderWidth : 0;
-    this._letterBorderColor = (typeof options.letterBorderColor !== 'undefined') ? options.letterBorderColor : '#000000';
-    this._textColor = (typeof options.textColor !== 'undefined') ? options.textColor : '#ffffff';
-    this.textColorFunc = (typeof options.textColorFunc === 'function') ? options.textColorFunc : null;
+    // Legacy compatibility
+    if (this.opts.colorMap && Object.keys(this.opts.noteColorMap).length === 0) {
+      this.opts.noteColorMap = this.opts.colorMap;
+    }
 
-    // State
-    this.letterNodes = []; // array of DOM nodes (span for chars, br for newline)
+    // State (manteniendo estructura original pero usando opts)
+    this.letterNodes = [];
     this.cursorPos = 0;
     this.selectionStart = null;
     this.selectionEnd = null;
-    this.clipboard = []; // array of { text, color } ; newline as '\n'
-    this.isDragging = false;
+    this.clipboard = [];
     this.handlers = {};
-    this.overwriteMode = false;
-    this.isEditable = true;
+    this.isDragging = false;
+    this.overwriteMode = this.opts.overwriteMode;
+    this.isEditable = this.opts.editable;
     this.editingIndex = null;
     this.editingOffset = 0;
-    this._isTypingInWord = false; // Track if actively typing in a word span
+    this._isTypingInWord = false;
+    this._lastClickTime = 0;
+    this._seqIndex = 0;
+    this.isComposing = false;
 
-    // Build DOM and events
+    // Initialize
     this._build();
     this._attachEvents();
     this._render();
@@ -77,14 +70,6 @@ class Notepad {
     this._render();
   }
 
-  /**
-   * Insert text as word blocks - each word becomes a single span block
-   * @param {string} text - The text to insert (will be split by spaces)
-   * @param {Object} options - Configuration options
-   * @param {Function} options.colorFunc - Function that returns a color for each word (receives word, index)
-   * @param {string} options.spaceColor - Color for spaces (default: 'transparent')
-   * @param {boolean} options.randomColors - Use random vibrant colors (default: true)
-   */
   insertTextAsWordBlocks(text, options = {}) {
     const {
       colorFunc = null,
@@ -92,47 +77,39 @@ class Notepad {
       randomColors = true
     } = options;
 
-    // Helper to generate random vibrant colors
     const generateRandomColor = () => {
       const hue = Math.floor(Math.random() * 360);
-      const saturation = 70 + Math.floor(Math.random() * 30); // 70-100%
-      const lightness = 45 + Math.floor(Math.random() * 20);  // 45-65%
+      const saturation = 70 + Math.floor(Math.random() * 30);
+      const lightness = 45 + Math.floor(Math.random() * 20);
       return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
     };
 
-    // Split text into words
     const words = text.split(' ');
-
-    // Clear existing content
     this._clearAll();
 
     words.forEach((word, index) => {
-      // Determine color for this word
       let wordColor;
       if (colorFunc) {
         wordColor = colorFunc(word, index);
       } else if (randomColors) {
         wordColor = generateRandomColor();
       } else {
-        // Use default color mapping
         wordColor = this._getColorForChar(word[0] || 'a');
       }
 
-      // Create a single span for the entire word
       const span = document.createElement('span');
       span.textContent = word;
       span.style.display = 'inline-block';
       span.style.backgroundColor = wordColor;
       span.style.color = this._resolveTextColor(word[0], this.letterNodes.length, wordColor);
-      span.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
-      span.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
-      span.style.borderRadius = this._letterBorderRadius + 'px';
-      span.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
+      span.style.padding = `${this.opts.letterPadY}px ${this.opts.letterPadX}px`;
+      span.style.margin = (typeof this.opts.letterMarginX === 'number') ? `0 ${this.opts.letterMarginX}px` : this.opts.letterMarginX;
+      span.style.borderRadius = this.opts.letterBorderRadius + 'px';
+      span.style.border = this.opts.letterBorderWidth + 'px solid ' + this.opts.letterBorderColor;
       span.dataset.color = wordColor;
 
       this.letterNodes.push(span);
 
-      // Add space between words (except after last word)
       if (index < words.length - 1) {
         const spaceSpan = document.createElement('span');
         spaceSpan.textContent = ' ';
@@ -179,55 +156,18 @@ class Notepad {
         color: color,
         rgb: rgb,
         padding: {
-          y: this._letterPadY,
-          x: this._letterPadX
+          y: this.opts.letterPadY,
+          x: this.opts.letterPadX
         },
-        margin: this._letterMarginX,
-        borderRadius: this._letterBorderRadius,
+        margin: this.opts.letterMarginX,
+        borderRadius: this.opts.letterBorderRadius,
         border: {
-          width: this._letterBorderWidth,
-          color: this._letterBorderColor
+          width: this.opts.letterBorderWidth,
+          color: this.opts.letterBorderColor
         },
-        textColor: node.style.color || this._textColor
+        textColor: node.style.color || this.opts.textColor
       };
     });
-  }
-
-  _parseColor(colorString) {
-    // Helper to parse color string to RGB object
-    if (!colorString || colorString === 'transparent') {
-      return null;
-    }
-
-    // Handle hex colors
-    if (colorString.startsWith('#')) {
-      const hex = colorString.slice(1);
-      if (hex.length === 3) {
-        return {
-          r: parseInt(hex[0] + hex[0], 16),
-          g: parseInt(hex[1] + hex[1], 16),
-          b: parseInt(hex[2] + hex[2], 16)
-        };
-      } else if (hex.length === 6) {
-        return {
-          r: parseInt(hex.slice(0, 2), 16),
-          g: parseInt(hex.slice(2, 4), 16),
-          b: parseInt(hex.slice(4, 6), 16)
-        };
-      }
-    }
-
-    // Handle rgb/rgba colors
-    const rgbMatch = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-    if (rgbMatch) {
-      return {
-        r: parseInt(rgbMatch[1]),
-        g: parseInt(rgbMatch[2]),
-        b: parseInt(rgbMatch[3])
-      };
-    }
-
-    return null;
   }
 
   setFromPlainText(text) {
@@ -281,27 +221,19 @@ class Notepad {
     if (!this.clipboard || this.clipboard.length === 0) return;
 
     if (this.overwriteMode) {
-      // Overwrite mode paste
       const range = this._getSelectionRange();
       let startPos = range ? range.start : this.cursorPos;
-
-      // If selection, first clear it to spaces? Or just overwrite from start?
-      // Let's overwrite from start of selection/cursor
-
       let pasteIdx = 0;
-      // Flatten clipboard text
       let pasteText = "";
       for (let item of this.clipboard) pasteText += item.text;
 
       for (let i = startPos; i < this.letterNodes.length && pasteIdx < pasteText.length; i++) {
         const node = this.letterNodes[i];
-        if (node.tagName === 'BR') continue; // Skip newlines in overwrite?
-
+        if (node.tagName === 'BR') continue;
         node.textContent = pasteText[pasteIdx];
         pasteIdx++;
       }
 
-      // If selection was larger than paste, fill rest with spaces?
       if (range && (startPos + pasteIdx) < range.end) {
         for (let i = startPos + pasteIdx; i < range.end; i++) {
           const node = this.letterNodes[i];
@@ -336,38 +268,53 @@ class Notepad {
 
   // ---------------- Color & background API ----------------
 
-  setNoteColorMap(map) { this.noteColorMap = map || null; this.recolor(); }
-  setNoteColor(note, color) {
-    if (!this.noteColorMap) this.noteColorMap = {};
-    if (color == null) delete this.noteColorMap[note];
-    else this.noteColorMap[note] = color;
+  setNoteColorMap(map) {
+    this.opts.noteColorMap = map || {};
     this.recolor();
   }
-  setColorMap(map) { this.colorMap = map || null; this.recolor(); }
-  setColorSequence(seq) { this.colorSequence = (Array.isArray(seq) && seq.length) ? seq.slice() : null; this._seqIndex = 0; this.recolor(); }
-  setColorFunc(fn) { this.colorFunc = (typeof fn === 'function') ? fn : null; this.recolor(); }
-  resetSequence() { this._seqIndex = 0; this.recolor(); }
 
-  // change whole app background or container background
-  setAppBackground(color) { try { document.body.style.backgroundColor = color; } catch (e) { } }
-  setContainerBackground(color) { try { this.container.style.background = color; } catch (e) { } }
-
-  setNoteColorMap(map) {
-    this.noteColorMap = map;
+  setNoteColor(note, color) {
+    if (!this.opts.noteColorMap) this.opts.noteColorMap = {};
+    if (color == null) delete this.opts.noteColorMap[note];
+    else this.opts.noteColorMap[note] = color;
     this.recolor();
+  }
+
+  setColorMap(map) {
+    this.opts.colorMap = map || {};
+    this.recolor();
+  }
+
+  setColorSequence(seq) {
+    this.opts.colorSequence = (Array.isArray(seq) && seq.length) ? seq.slice() : null;
+    this._seqIndex = 0;
+    this.recolor();
+  }
+
+  setColorFunc(fn) {
+    this.opts.colorFunc = (typeof fn === 'function') ? fn : null;
+    this.recolor();
+  }
+
+  resetSequence() {
+    this._seqIndex = 0;
+    this.recolor();
+  }
+
+  setAppBackground(color) {
+    try { document.body.style.backgroundColor = color; } catch (e) { }
+  }
+
+  setContainerBackground(color) {
+    try { this.container.style.background = color; } catch (e) { }
   }
 
   setRainbowCycleMode(steps = 10) {
     const colors = Notepad.generateRainbowColors(steps);
     let cycleIndex = 0;
     this.setColorFunc((char, index) => {
-      // Reset cycle if we are starting from the beginning (index 0)
-      // Note: This works well for full re-renders or initial insert.
-      // For appending, index will be > 0, so cycle continues.
       if (index === 0) cycleIndex = 0;
-
       if (char === ' ') return 'transparent';
-
       const color = colors[cycleIndex % colors.length];
       cycleIndex++;
       return color;
@@ -375,21 +322,26 @@ class Notepad {
   }
 
   setContainerPadding(padding) {
-    this._containerPadding = padding;
+    this.opts.containerPadding = padding;
     this.container.style.padding = padding;
     this._render();
   }
 
   setSize(w, h) {
-    if (w) { this.width = w; this.container.style.width = w + 'px'; }
-    if (h) { this.height = h; this.container.style.height = h + 'px'; }
+    if (w) {
+      this.opts.width = w;
+      this.container.style.width = (typeof w === 'number') ? `${w}px` : w;
+    }
+    if (h) {
+      this.opts.height = h;
+      this.container.style.height = (typeof h === 'number') ? `${h}px` : h;
+    }
   }
 
   setBorder(width, color, radius) {
     if (width !== null) this.container.style.borderWidth = width + 'px';
     if (color !== null) this.container.style.borderColor = color;
     if (radius !== null) this.container.style.borderRadius = radius + 'px';
-    // Ensure style is solid if not set, though _build sets border: 1px solid #ccc
     this.container.style.borderStyle = 'solid';
   }
 
@@ -405,14 +357,10 @@ class Notepad {
     }
   }
 
-  /**
-   * Set the insertion mode for character grouping
-   * @param {string} mode - 'letter' or 'word'
-   */
   setInsertionMode(mode) {
     const validModes = ['letter', 'word'];
     if (validModes.includes(mode)) {
-      this.insertionMode = mode;
+      this.opts.insertionMode = mode;
     } else {
       console.warn(`Invalid insertion mode: ${mode}. Valid modes are: ${validModes.join(', ')}`);
     }
@@ -427,7 +375,6 @@ class Notepad {
     }
   }
 
-  // Recolorize deterministically (used after changing maps)
   recolor() {
     for (let i = 0; i < this.letterNodes.length; i++) {
       const n = this.letterNodes[i];
@@ -436,7 +383,6 @@ class Notepad {
       const col = this._deterministicColorForChar(ch, i);
       n.style.backgroundColor = col;
       n.dataset.color = col;
-
       const textCol = this._resolveTextColor(ch, i, col);
       n.style.color = textCol;
     }
@@ -445,31 +391,26 @@ class Notepad {
 
   // ---------------- Font / spacing API ----------------
 
-  // Apply fontFamily and fontSize (affects container and existing letter nodes)
-  // Note: spans do NOT have inline font-family/font-size so they inherit from container.
   setFont(fontFamily, fontSize) {
     if (fontFamily) {
-      this.fontFamily = fontFamily;
+      this.opts.fontFamily = fontFamily;
       this.container.style.fontFamily = fontFamily;
     }
     if (fontSize) {
-      this.fontSize = fontSize;
+      this.opts.fontSize = fontSize;
       this.container.style.fontSize = fontSize + 'px';
     }
-    // remove inline font properties from spans so they inherit the container styles
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
       n.style.removeProperty('font-family');
       n.style.removeProperty('font-size');
     }
-    // update cursor height
-    this.cursor.style.height = (this.fontSize + 4) + 'px';
+    this.cursor.style.height = (this.opts.fontSize + 4) + 'px';
   }
 
-  // padding: padY (top/bottom) and padX (left/right) in px
   setLetterPadding(padY = 2, padX = 4) {
-    this._letterPadY = padY;
-    this._letterPadX = padX;
+    this.opts.letterPadY = padY;
+    this.opts.letterPadX = padX;
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
       n.style.padding = `${padY}px ${padX}px`;
@@ -477,7 +418,7 @@ class Notepad {
   }
 
   setLetterBorderRadius(radius = 4) {
-    this._letterBorderRadius = radius;
+    this.opts.letterBorderRadius = radius;
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
       n.style.borderRadius = radius + 'px';
@@ -485,16 +426,16 @@ class Notepad {
   }
 
   setLetterBorder(width, color) {
-    if (width !== null && width !== undefined) this._letterBorderWidth = width;
-    if (color !== null && color !== undefined) this._letterBorderColor = color;
+    if (width !== null && width !== undefined) this.opts.letterBorderWidth = width;
+    if (color !== null && color !== undefined) this.opts.letterBorderColor = color;
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
-      n.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
+      n.style.border = this.opts.letterBorderWidth + 'px solid ' + this.opts.letterBorderColor;
     }
   }
 
   setTextColor(color) {
-    this._textColor = color;
+    this.opts.textColor = color;
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
       n.style.color = color;
@@ -502,14 +443,12 @@ class Notepad {
   }
 
   setTextColorFunc(fn) {
-    this.textColorFunc = (typeof fn === 'function') ? fn : null;
+    this.opts.textColorFunc = (typeof fn === 'function') ? fn : null;
     this.recolor();
   }
 
-  // marginX: number => horizontal margin (px) applied as '0 ${marginX}px'
-  // or string to provide full margin value
   setLetterMargin(marginX = 0) {
-    this._letterMarginX = marginX;
+    this.opts.letterMarginX = marginX;
     const val = (typeof marginX === 'number') ? `0 ${marginX}px` : marginX;
     for (const n of this.letterNodes) {
       if (!n || n.tagName === 'BR') continue;
@@ -528,11 +467,9 @@ class Notepad {
     this.container.remove();
   }
 
-  // ---------------- Export: p5-based with canvas fallback ----------------
+  // ---------------- Export ----------------
 
-  // export using p5.createGraphics if available; otherwise uses native canvas fallback
   exportAsImageWithP5(filename = 'notepad.png', opts = {}) {
-    // fallback automatically to canvas exporter if p5 global not available
     if (typeof window.createGraphics !== 'function') {
       if (typeof this.exportAsImageCanvas === 'function') {
         return this.exportAsImageCanvas(filename, opts);
@@ -544,8 +481,6 @@ class Notepad {
     return new Promise((resolve, reject) => {
       const scale = opts.scale || 2;
       const background = (typeof opts.background !== 'undefined') ? opts.background : this.container.style.background;
-
-
       const width = Math.max(1, this.container.scrollWidth);
       const height = Math.max(1, this.container.scrollHeight);
 
@@ -557,8 +492,8 @@ class Notepad {
         if (background !== null) g.background(background); else g.clear();
 
         g.noStroke();
-        g.textSize(this.fontSize);
-        try { g.textFont(this.fontFamily); } catch (e) { }
+        g.textSize(this.opts.fontSize);
+        try { g.textFont(this.opts.fontFamily); } catch (e) { }
         g.textAlign(g.LEFT, g.TOP);
 
         const containerRect = this.container.getBoundingClientRect();
@@ -582,7 +517,7 @@ class Notepad {
             g.rect(x, y, w, h);
           }
 
-          g.fill(node.style.color || this._textColor || '#ffffff');
+          g.fill(node.style.color || this.opts.textColor || '#ffffff');
           g.text(node.textContent, x + 2, y + 2);
         }
 
@@ -628,7 +563,7 @@ class Notepad {
 
         const containerRect = this.container.getBoundingClientRect();
         ctx.textBaseline = 'top';
-        ctx.font = `${this.fontSize}px ${this.fontFamily || 'monospace'}`;
+        ctx.font = `${this.opts.fontSize}px ${this.opts.fontFamily || 'monospace'}`;
 
         for (let i = 0; i < this.letterNodes.length; i++) {
           const node = this.letterNodes[i];
@@ -656,7 +591,7 @@ class Notepad {
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = node.style.color || this._textColor || '#ffffff';
+          ctx.fillStyle = node.style.color || this.opts.textColor || '#ffffff';
           ctx.fillText(node.textContent, x + 4, y + 4);
         }
 
@@ -684,12 +619,12 @@ class Notepad {
     this.container.className = 'notepad-container';
     this.container.tabIndex = 0;
     Object.assign(this.container.style, {
-      width: this.width + 'px',
-      height: this.height + 'px',
+      width: (typeof this.opts.width === 'number') ? `${this.opts.width}px` : this.opts.width,
+      height: (typeof this.opts.height === 'number') ? `${this.opts.height}px` : this.opts.height,
       border: '1px solid #ccc',
-      padding: this._containerPadding,
-      fontFamily: this.fontFamily,
-      fontSize: this.fontSize + 'px',
+      padding: this.opts.containerPadding,
+      fontFamily: this.opts.fontFamily,
+      fontSize: this.opts.fontSize + 'px',
       lineHeight: '1.5',
       cursor: 'text',
       overflow: 'auto',
@@ -706,9 +641,9 @@ class Notepad {
     this.cursor = document.createElement('span');
     this.cursor.className = 'notepad-cursor';
     Object.assign(this.cursor.style, {
-      display: 'none', // Hidden by default
+      display: 'none',
       width: '2px',
-      height: (this.fontSize + 4) + 'px',
+      height: (this.opts.fontSize + 4) + 'px',
       backgroundColor: '#333',
       verticalAlign: 'text-bottom',
       animation: 'np-blink 1s steps(2,start) infinite',
@@ -725,16 +660,16 @@ class Notepad {
       document.head.appendChild(st);
     }
 
+    this.parent = this.opts.parent || document.body;
     this.parent.appendChild(this.container);
 
-    // Hidden textarea for mobile input
     this.textarea = document.createElement('textarea');
     Object.assign(this.textarea.style, {
       position: 'absolute',
       opacity: '0',
       pointerEvents: 'none',
       width: '1px',
-      height: '1px',
+      height: 'px',
       top: '0',
       left: '0'
     });
@@ -746,12 +681,10 @@ class Notepad {
     this.textarea.addEventListener('blur', () => {
       this.cursor.style.display = 'none';
     });
-
-    // Initial focus call removed to respect "hidden by default"
-    // this.focus(); 
   }
 
   _attachEvents() {
+    // ... (mantener toda la lógica de eventos de la versión original 55KB)
     this._onPointerDown = (e) => {
       e.preventDefault();
       if (!this.isEditable) return;
@@ -771,8 +704,6 @@ class Notepad {
             const node = this.letterNodes[idx];
             if (node.tagName !== 'BR') {
               this.editingIndex = idx;
-
-              // Calculate offset
               let offset = node.textContent.length;
               if (document.caretRangeFromPoint) {
                 const range = document.caretRangeFromPoint(e.clientX, e.clientY);
@@ -804,7 +735,7 @@ class Notepad {
       }
 
       this.editingIndex = null;
-      this._isTypingInWord = false; // Stop typing when clicking
+      this._isTypingInWord = false;
 
       const rectContainer = this.container.getBoundingClientRect();
       const clickX = e.clientX - rectContainer.left + this.container.scrollLeft;
@@ -813,7 +744,6 @@ class Notepad {
       let idx = null;
       const target = e.target;
 
-      // Fast path: if clicked on node with dataset.index, use rect half detection
       if (target && target !== this.container && target !== this.content && target !== this.cursor && target.dataset && typeof target.dataset.index !== 'undefined') {
         const spanIndex = parseInt(target.dataset.index, 10);
         if (target.tagName === 'BR') {
@@ -825,7 +755,6 @@ class Notepad {
         }
       }
 
-      // If not decided: click to right of last node => end
       if (idx === null) {
         if (this.letterNodes.length > 0) {
           const lastNode = this.letterNodes[this.letterNodes.length - 1];
@@ -839,7 +768,6 @@ class Notepad {
         }
       }
 
-      // fallback: XY hit test (handles wrapped lines)
       if (idx === null) idx = this._indexFromClientXY(e.clientX, e.clientY);
 
       idx = Math.max(0, Math.min(idx, this.letterNodes.length));
@@ -852,7 +780,6 @@ class Notepad {
         return;
       }
 
-      // start normal click/drag selection
       this.selectionStart = idx;
       this.selectionEnd = idx;
       this.cursorPos = idx;
@@ -874,14 +801,13 @@ class Notepad {
       this.isDragging = false;
       if (this.selectionStart === this.selectionEnd) this._clearSelection();
       this._render();
-      this.textarea.focus(); // Ensure focus remains for typing
+      this.textarea.focus();
     };
 
     this.container.addEventListener('pointerdown', this._onPointerDown);
     window.addEventListener('pointermove', this._onPointerMove);
     window.addEventListener('pointerup', this._onPointerUp);
 
-    // IME Composition handling
     this.isComposing = false;
 
     this._onCompositionStart = (e) => {
@@ -890,7 +816,6 @@ class Notepad {
 
     this._onCompositionEnd = (e) => {
       this.isComposing = false;
-      // Insert the composed text
       if (e.data) {
         for (let char of e.data) {
           this._insertChar(char);
@@ -898,19 +823,17 @@ class Notepad {
         this._render();
         this._emit('change');
       }
-      this.textarea.value = ''; // Clear buffer
+      this.textarea.value = '';
     };
 
     this.textarea.addEventListener('compositionstart', this._onCompositionStart);
     this.textarea.addEventListener('compositionend', this._onCompositionEnd);
 
-    // Input event for mobile/IME
     this._onInput = (e) => {
       if (!this.isEditable) {
         this.textarea.value = '';
         return;
       }
-      // Ignore input events during composition (swipe/handwriting)
       if (this.isComposing) return;
 
       const inputType = e.inputType;
@@ -927,11 +850,10 @@ class Notepad {
       } else if (inputType === 'deleteContentForward') {
         this._handleDelete();
       } else if (inputType === 'insertFromPaste') {
-        // Paste is usually handled by 'paste' event, but just in case
-        // We rely on the paste event listener below
+        // Paste handled by paste event
       }
 
-      this.textarea.value = ''; // Clear buffer
+      this.textarea.value = '';
       this._render();
       this._emit('change');
     };
@@ -974,7 +896,7 @@ class Notepad {
         }
         this.cursorPos = Math.max(0, this.cursorPos - 1);
         this._clearSelection();
-        this._isTypingInWord = false; // Stop typing when navigating
+        this._isTypingInWord = false;
         this._render();
         return;
       }
@@ -994,7 +916,7 @@ class Notepad {
         }
         this.cursorPos = Math.min(this.letterNodes.length, this.cursorPos + 1);
         this._clearSelection();
-        this._isTypingInWord = false; // Stop typing when navigating
+        this._isTypingInWord = false;
         this._render();
         return;
       }
@@ -1012,41 +934,31 @@ class Notepad {
         return;
       }
 
-      // If input event handles it (single char), ignore here to avoid double insert
-      // But for desktop, keydown is reliable. We can check if key is a single char.
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault(); // Prevent 'input' event to avoid double insertion
-
+        e.preventDefault();
         if (this.overwriteMode) {
           this._overwriteChar(e.key);
         } else {
           this._insertChar(e.key);
         }
-
         this._render();
         this._emit('change');
       }
     };
 
     this.textarea.addEventListener('keydown', this._onKeyDown);
-    // Keep container listener for focus/shortcuts if needed, but textarea is main input
     this.container.addEventListener('keydown', (e) => {
-      // Redirect focus to textarea if container gets keys
       this.textarea.focus();
     });
   }
 
   _updateTextareaPosition() {
-    // Position textarea at cursor to prevent scroll jump on mobile
     try {
       const cursorRect = this.cursor.getBoundingClientRect();
       const containerRect = this.container.getBoundingClientRect();
-
       this.textarea.style.top = (cursorRect.top - containerRect.top + this.container.scrollTop) + 'px';
       this.textarea.style.left = (cursorRect.left - containerRect.left + this.container.scrollLeft) + 'px';
-    } catch (e) {
-      // Fallback if cursor not yet rendered
-    }
+    } catch (e) { }
   }
 
   _handleBackspace() {
@@ -1138,33 +1050,29 @@ class Notepad {
 
     const isSpace = ch === ' ';
 
-    // Word mode: new logic for intelligent grouping
-    if (this.insertionMode === 'word') {
+    if (this.opts.insertionMode === 'word') {
       const prevNode = this.letterNodes[this.cursorPos - 1];
 
       if (isSpace) {
-        // Check if previous node is also a space
         const isPrevSpace = prevNode && prevNode.textContent === ' ';
 
         if (isPrevSpace) {
-          // Two spaces in a row: create a visual space block
           const spaceSpan = document.createElement('span');
           spaceSpan.textContent = ' ';
           spaceSpan.style.display = 'inline-block';
           spaceSpan.style.backgroundColor = 'transparent';
           spaceSpan.style.color = 'transparent';
-          spaceSpan.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
-          spaceSpan.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
+          spaceSpan.style.padding = `${this.opts.letterPadY}px ${this.opts.letterPadX}px`;
+          spaceSpan.style.margin = (typeof this.opts.letterMarginX === 'number') ? `0 ${this.opts.letterMarginX}px` : this.opts.letterMarginX;
           spaceSpan.dataset.color = 'transparent';
 
           this.letterNodes.splice(this.cursorPos, 0, spaceSpan);
           this.cursorPos++;
-          this._isTypingInWord = false; // Stop typing in word
+          this._isTypingInWord = false;
           this._render();
           this._emit('change');
           return;
         } else {
-          // Single space: just mark it (invisible separator)
           const spaceMarker = document.createElement('span');
           spaceMarker.textContent = ' ';
           spaceMarker.style.display = 'inline-block';
@@ -1179,14 +1087,12 @@ class Notepad {
 
           this.letterNodes.splice(this.cursorPos, 0, spaceMarker);
           this.cursorPos++;
-          this._isTypingInWord = false; // Stop typing in word
+          this._isTypingInWord = false;
           this._render();
           this._emit('change');
           return;
         }
       } else {
-        // Not a space - check if we can append to previous word
-        // Only append if we were already typing in that word
         const canAppendToPrev = this._isTypingInWord &&
           prevNode &&
           prevNode.tagName === 'SPAN' &&
@@ -1194,20 +1100,15 @@ class Notepad {
           !prevNode.dataset.invisibleSpace;
 
         if (canAppendToPrev) {
-          // Append character to the previous word span (continuing to type)
           prevNode.textContent += ch;
-          this._isTypingInWord = true; // Keep typing flag active
+          this._isTypingInWord = true;
           this._render();
           this._emit('change');
           return;
         }
-        // If not appending, we'll create a new span below and start typing
       }
     }
 
-    // Create a new span for this character
-    // After creating it, mark that we're starting to type in this new word
-    const willStartTyping = !isSpace && this.insertionMode === 'word';
     const span = document.createElement('span');
     span.textContent = ch;
 
@@ -1216,19 +1117,16 @@ class Notepad {
     span.style.backgroundColor = isSpace ? 'transparent' : color;
     span.style.color = this._resolveTextColor(ch, this.cursorPos, color);
 
-    // Apply standard spacing
-    span.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
-    span.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
-    span.style.borderRadius = this._letterBorderRadius + 'px';
-    span.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
-    // NOTE: do NOT set fontFamily or fontSize inline so spans inherit from container
+    span.style.padding = `${this.opts.letterPadY}px ${this.opts.letterPadX}px`;
+    span.style.margin = (typeof this.opts.letterMarginX === 'number') ? `0 ${this.opts.letterMarginX}px` : this.opts.letterMarginX;
+    span.style.borderRadius = this.opts.letterBorderRadius + 'px';
+    span.style.border = this.opts.letterBorderWidth + 'px solid ' + this.opts.letterBorderColor;
     span.dataset.color = color;
-    //span.dataset.index = this.cursorPos;
+
     this.letterNodes.splice(this.cursorPos, 0, span);
     this.cursorPos++;
 
-    // Now that we've created the span, mark that we're typing in it
-    if (willStartTyping) {
+    if (!isSpace && this.opts.insertionMode === 'word') {
       this._isTypingInWord = true;
     }
   }
@@ -1238,7 +1136,7 @@ class Notepad {
       this.cursorPos = this.editingIndex + 1;
       this.editingIndex = null;
     }
-    if (this.overwriteMode) return; // No newlines in overwrite mode (fixed length/structure)
+    if (this.overwriteMode) return;
     const sel = this._getSelectionRange();
     if (sel) {
       for (let i = sel.end - 1; i >= sel.start; i--) {
@@ -1257,11 +1155,8 @@ class Notepad {
   _overwriteChar(ch) {
     const sel = this._getSelectionRange();
     if (sel) {
-      // Replace first char with ch
       const firstNode = this.letterNodes[sel.start];
       if (firstNode && firstNode.tagName !== 'BR') firstNode.textContent = ch;
-
-      // Replace rest with space
       for (let i = sel.start + 1; i < sel.end; i++) {
         const n = this.letterNodes[i];
         if (n && n.tagName !== 'BR') n.textContent = ' ';
@@ -1281,7 +1176,6 @@ class Notepad {
   _handleOverwriteBackspace() {
     const range = this._getSelectionRange();
     if (range) {
-      // Replace selection with spaces
       for (let i = range.start; i < range.end; i++) {
         const n = this.letterNodes[i];
         if (n && n.tagName !== 'BR') n.textContent = ' ';
@@ -1308,7 +1202,6 @@ class Notepad {
   _handleOverwriteDelete() {
     const range = this._getSelectionRange();
     if (range) {
-      // Replace selection with spaces
       for (let i = range.start; i < range.end; i++) {
         const n = this.letterNodes[i];
         if (n && n.tagName !== 'BR') n.textContent = ' ';
@@ -1323,7 +1216,6 @@ class Notepad {
       const node = this.letterNodes[this.cursorPos];
       if (node && node.tagName !== 'BR') {
         node.textContent = ' ';
-        // Cursor stays
         this._render();
         this._emit('change');
       }
@@ -1331,76 +1223,71 @@ class Notepad {
   }
 
   _getColorForChar(ch) {
-    // noteColorMap priority
-    if (this.noteColorMap && typeof this.noteColorMap === 'object') {
-      if (this.noteColorMap.hasOwnProperty(ch)) { this._seqIndex++; return this.noteColorMap[ch]; }
+    if (this.opts.noteColorMap && typeof this.opts.noteColorMap === 'object') {
+      if (this.opts.noteColorMap.hasOwnProperty(ch)) { this._seqIndex++; return this.opts.noteColorMap[ch]; }
       const lower = ch.toLowerCase();
-      if (this.noteColorMap.hasOwnProperty(lower)) { this._seqIndex++; return this.noteColorMap[lower]; }
+      if (this.opts.noteColorMap.hasOwnProperty(lower)) { this._seqIndex++; return this.opts.noteColorMap[lower]; }
     }
 
-    // colorFunc
-    if (typeof this.colorFunc === 'function') {
+    if (typeof this.opts.colorFunc === 'function') {
       try {
-        const c = this.colorFunc(ch, this.letterNodes.length, this._seqIndex);
+        const c = this.opts.colorFunc(ch, this.letterNodes.length, this._seqIndex);
         if (c) { this._seqIndex++; return c; }
       } catch (e) { console.error('colorFunc error', e); }
     }
 
-    // legacy colorMap
-    if (this.colorMap && typeof this.colorMap === 'object') {
-      if (this.colorMap.hasOwnProperty(ch)) { this._seqIndex++; return this.colorMap[ch]; }
+    if (this.opts.colorMap && typeof this.opts.colorMap === 'object') {
+      if (this.opts.colorMap.hasOwnProperty(ch)) { this._seqIndex++; return this.opts.colorMap[ch]; }
       const lower = ch.toLowerCase();
-      if (this.colorMap.hasOwnProperty(lower)) { this._seqIndex++; return this.colorMap[lower]; }
+      if (this.opts.colorMap.hasOwnProperty(lower)) { this._seqIndex++; return this.opts.colorMap[lower]; }
     }
 
-    // sequence
-    if (Array.isArray(this.colorSequence) && this.colorSequence.length) {
-      const c = this.colorSequence[this._seqIndex % this.colorSequence.length];
+    if (Array.isArray(this.opts.colorSequence) && this.opts.colorSequence.length) {
+      const c = this.opts.colorSequence[this._seqIndex % this.opts.colorSequence.length];
       this._seqIndex++;
       return c;
     }
 
-    // fallback deterministic (from this.colors)
-    const c = this.colors[this._seqIndex % this.colors.length];
+    const c = this.opts.colors[this._seqIndex % this.opts.colors.length];
     this._seqIndex++;
     return c;
   }
 
   _deterministicColorForChar(ch, pos) {
-    if (this.noteColorMap && typeof this.noteColorMap === 'object') {
-      if (this.noteColorMap.hasOwnProperty(ch)) return this.noteColorMap[ch];
+    if (this.opts.noteColorMap && typeof this.opts.noteColorMap === 'object') {
+      if (this.opts.noteColorMap.hasOwnProperty(ch)) return this.opts.noteColorMap[ch];
       const lower = ch.toLowerCase();
-      if (this.noteColorMap.hasOwnProperty(lower)) return this.noteColorMap[lower];
+      if (this.opts.noteColorMap.hasOwnProperty(lower)) return this.opts.noteColorMap[lower];
     }
 
-    if (typeof this.colorFunc === 'function') {
+    if (typeof this.opts.colorFunc === 'function') {
       try {
-        const c = this.colorFunc(ch, pos, pos);
+        const c = this.opts.colorFunc(ch, pos, pos);
         if (c) return c;
       } catch (e) { console.error('colorFunc error', e); }
     }
 
-    if (this.colorMap && typeof this.colorMap === 'object') {
-      if (this.colorMap.hasOwnProperty(ch)) return this.colorMap[ch];
+    if (this.opts.colorMap && typeof this.opts.colorMap === 'object') {
+      if (this.opts.colorMap.hasOwnProperty(ch)) return this.opts.colorMap[ch];
       const lower = ch.toLowerCase();
-      if (this.colorMap.hasOwnProperty(lower)) return this.colorMap[lower];
+      if (this.opts.colorMap.hasOwnProperty(lower)) return this.opts.colorMap[lower];
     }
 
-    if (Array.isArray(this.colorSequence) && this.colorSequence.length) {
-      return this.colorSequence[pos % this.colorSequence.length];
+    if (Array.isArray(this.opts.colorSequence) && this.opts.colorSequence.length) {
+      return this.opts.colorSequence[pos % this.opts.colorSequence.length];
     }
 
-    return this.colors[pos % this.colors.length];
+    return this.opts.colors[pos % this.opts.colors.length];
   }
 
   _resolveTextColor(ch, index, bgColor) {
-    if (typeof this.textColorFunc === 'function') {
+    if (typeof this.opts.textColorFunc === 'function') {
       try {
-        const c = this.textColorFunc(ch, index, bgColor);
+        const c = this.opts.textColorFunc(ch, index, bgColor);
         if (c) return c;
       } catch (e) { console.error('textColorFunc error', e); }
     }
-    return this._textColor;
+    return this.opts.textColor;
   }
 
   _clearAll() {
@@ -1417,18 +1304,15 @@ class Notepad {
     for (let i = 0; i < this.letterNodes.length; i++) {
       const node = this.letterNodes[i];
       node.dataset.index = i;
-      // Normalize content if not editing
       if (this.editingIndex !== i && node.childNodes.length > 1) {
         node.textContent = node.textContent;
       }
     }
 
     if (this.editingIndex !== null && this.editingIndex < this.letterNodes.length) {
-      // Render all nodes
       for (let i = 0; i < this.letterNodes.length; i++) {
         this.content.appendChild(this.letterNodes[i]);
       }
-      // Place cursor inside the edited node
       const node = this.letterNodes[this.editingIndex];
       const text = node.textContent;
       node.innerHTML = '';
@@ -1439,13 +1323,11 @@ class Notepad {
       node.appendChild(document.createTextNode(part2));
       this.cursor.style.display = 'inline-block';
     } else {
-      // Check if we should place cursor inside the previous word (word mode)
       let placeCursorInside = false;
       let targetNode = null;
 
-      if (this.insertionMode === 'word' && this.cursorPos > 0 && this._isTypingInWord) {
+      if (this.opts.insertionMode === 'word' && this.cursorPos > 0 && this._isTypingInWord) {
         const prevNode = this.letterNodes[this.cursorPos - 1];
-        // Place cursor inside if previous node is a word (not a space marker)
         if (prevNode &&
           prevNode.tagName === 'SPAN' &&
           !prevNode.dataset.invisibleSpace &&
@@ -1456,10 +1338,8 @@ class Notepad {
       }
 
       if (placeCursorInside && targetNode) {
-        // Render all nodes except we'll handle the target node specially
         for (let i = 0; i < this.letterNodes.length; i++) {
           if (this.letterNodes[i] === targetNode) {
-            // Insert cursor at the end of this node
             const text = targetNode.textContent;
             targetNode.innerHTML = '';
             targetNode.appendChild(document.createTextNode(text));
@@ -1470,7 +1350,6 @@ class Notepad {
           }
         }
       } else {
-        // Normal cursor placement between nodes
         for (let i = 0; i < this.cursorPos; i++) this.content.appendChild(this.letterNodes[i]);
         this.content.appendChild(this.cursor);
         for (let i = this.cursorPos; i < this.letterNodes.length; i++) this.content.appendChild(this.letterNodes[i]);
@@ -1509,8 +1388,6 @@ class Notepad {
     this._updateSelectionVisual();
   }
 
-  // ---------------- Hit testing por X,Y (mejor manejo de wraps) ----------------
-
   _indexFromClientXY(clientX, clientY) {
     const rectContainer = this.container.getBoundingClientRect();
     if (this.letterNodes.length === 0) return 0;
@@ -1536,7 +1413,7 @@ class Notepad {
     }
 
     const lineCenterY = infos[best].centerY;
-    const lineThreshold = Math.max((this.fontSize || 16) * 0.8, 8);
+    const lineThreshold = Math.max((this.opts.fontSize || 16) * 0.8, 8);
 
     const lineNodes = infos.filter(info => Math.abs(info.centerY - lineCenterY) <= lineThreshold);
     if (lineNodes.length === 0) return infos[best].idx;
@@ -1553,7 +1430,7 @@ class Notepad {
     return lastOnLine + 1;
   }
 
-  _randomColor() { return this.colors[Math.floor(Math.random() * this.colors.length)]; }
+  _randomColor() { return this.opts.colors[Math.floor(Math.random() * this.opts.colors.length)]; }
 
   _emit(eventName, payload) {
     if (!this.handlers[eventName]) return;
@@ -1561,6 +1438,41 @@ class Notepad {
       try { fn(payload); } catch (e) { console.error(e); }
     }
   }
+
+  _parseColor(colorString) {
+    if (!colorString || colorString === 'transparent') {
+      return null;
+    }
+
+    if (colorString.startsWith('#')) {
+      const hex = colorString.slice(1);
+      if (hex.length === 3) {
+        return {
+          r: parseInt(hex[0] + hex[0], 16),
+          g: parseInt(hex[1] + hex[1], 16),
+          b: parseInt(hex[2] + hex[2], 16)
+        };
+      } else if (hex.length === 6) {
+        return {
+          r: parseInt(hex.slice(0, 2), 16),
+          g: parseInt(hex.slice(2, 4), 16),
+          b: parseInt(hex.slice(4, 6), 16)
+        };
+      }
+    }
+
+    const rgbMatch = colorString.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+      return {
+        r: parseInt(rgbMatch[1]),
+        g: parseInt(rgbMatch[2]),
+        b: parseInt(rgbMatch[3])
+      };
+    }
+
+    return null;
+  }
+
   // ---------------- Static Color Helpers ----------------
 
   static get ALPHABET() {
@@ -1657,7 +1569,6 @@ class Notepad {
   }
 }
 
-// export global
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = Notepad;
 } else {
