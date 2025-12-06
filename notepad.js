@@ -29,6 +29,12 @@ class Notepad {
     this.colorFunc = options.colorFunc || null;
     this._seqIndex = 0;
 
+    // Insertion mode: 'letter-spaced', 'letter', or 'word'
+    // - 'letter-spaced': each letter in separate span with reduced spacing
+    // - 'letter': each letter in separate span with normal spacing
+    // - 'word': group characters into words (split by spaces)
+    this.insertionMode = options.insertionMode || 'word';
+
     // Spacing / font defaults for letters (can be changed with API)
     this._letterPadY = (typeof options.letterPadY !== 'undefined') ? options.letterPadY : 2;
     this._letterPadX = (typeof options.letterPadX !== 'undefined') ? options.letterPadX : 4;
@@ -36,6 +42,8 @@ class Notepad {
     this._letterBorderRadius = (typeof options.letterBorderRadius !== 'undefined') ? options.letterBorderRadius : 4;
     this._letterBorderWidth = (typeof options.letterBorderWidth !== 'undefined') ? options.letterBorderWidth : 0;
     this._letterBorderColor = (typeof options.letterBorderColor !== 'undefined') ? options.letterBorderColor : '#000000';
+    this._textColor = (typeof options.textColor !== 'undefined') ? options.textColor : '#ffffff';
+    this.textColorFunc = (typeof options.textColorFunc === 'function') ? options.textColorFunc : null;
 
     // State
     this.letterNodes = []; // array of DOM nodes (span for chars, br for newline)
@@ -45,6 +53,11 @@ class Notepad {
     this.clipboard = []; // array of { text, color } ; newline as '\n'
     this.isDragging = false;
     this.handlers = {};
+    this.overwriteMode = false;
+    this.isEditable = true;
+    this.editingIndex = null;
+    this.editingOffset = 0;
+    this._isTypingInWord = false; // Track if actively typing in a word span
 
     // Build DOM and events
     this._build();
@@ -62,6 +75,78 @@ class Notepad {
     }
     this._emit('change');
     this._render();
+  }
+
+  /**
+   * Insert text as word blocks - each word becomes a single span block
+   * @param {string} text - The text to insert (will be split by spaces)
+   * @param {Object} options - Configuration options
+   * @param {Function} options.colorFunc - Function that returns a color for each word (receives word, index)
+   * @param {string} options.spaceColor - Color for spaces (default: 'transparent')
+   * @param {boolean} options.randomColors - Use random vibrant colors (default: true)
+   */
+  insertTextAsWordBlocks(text, options = {}) {
+    const {
+      colorFunc = null,
+      spaceColor = 'transparent',
+      randomColors = true
+    } = options;
+
+    // Helper to generate random vibrant colors
+    const generateRandomColor = () => {
+      const hue = Math.floor(Math.random() * 360);
+      const saturation = 70 + Math.floor(Math.random() * 30); // 70-100%
+      const lightness = 45 + Math.floor(Math.random() * 20);  // 45-65%
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    };
+
+    // Split text into words
+    const words = text.split(' ');
+
+    // Clear existing content
+    this._clearAll();
+
+    words.forEach((word, index) => {
+      // Determine color for this word
+      let wordColor;
+      if (colorFunc) {
+        wordColor = colorFunc(word, index);
+      } else if (randomColors) {
+        wordColor = generateRandomColor();
+      } else {
+        // Use default color mapping
+        wordColor = this._getColorForChar(word[0] || 'a');
+      }
+
+      // Create a single span for the entire word
+      const span = document.createElement('span');
+      span.textContent = word;
+      span.style.display = 'inline-block';
+      span.style.backgroundColor = wordColor;
+      span.style.color = this._resolveTextColor(word[0], this.letterNodes.length, wordColor);
+      span.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
+      span.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
+      span.style.borderRadius = this._letterBorderRadius + 'px';
+      span.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
+      span.dataset.color = wordColor;
+
+      this.letterNodes.push(span);
+
+      // Add space between words (except after last word)
+      if (index < words.length - 1) {
+        const spaceSpan = document.createElement('span');
+        spaceSpan.textContent = ' ';
+        spaceSpan.style.display = 'inline-block';
+        spaceSpan.style.backgroundColor = spaceColor;
+        spaceSpan.style.color = 'transparent';
+        spaceSpan.dataset.color = spaceColor;
+        this.letterNodes.push(spaceSpan);
+      }
+    });
+
+    this.cursorPos = this.letterNodes.length;
+    this._render();
+    this._emit('change');
   }
 
   getPlainText() {
@@ -102,7 +187,8 @@ class Notepad {
         border: {
           width: this._letterBorderWidth,
           color: this._letterBorderColor
-        }
+        },
+        textColor: node.style.color || this._textColor
       };
     });
   }
@@ -193,6 +279,43 @@ class Notepad {
 
   paste() {
     if (!this.clipboard || this.clipboard.length === 0) return;
+
+    if (this.overwriteMode) {
+      // Overwrite mode paste
+      const range = this._getSelectionRange();
+      let startPos = range ? range.start : this.cursorPos;
+
+      // If selection, first clear it to spaces? Or just overwrite from start?
+      // Let's overwrite from start of selection/cursor
+
+      let pasteIdx = 0;
+      // Flatten clipboard text
+      let pasteText = "";
+      for (let item of this.clipboard) pasteText += item.text;
+
+      for (let i = startPos; i < this.letterNodes.length && pasteIdx < pasteText.length; i++) {
+        const node = this.letterNodes[i];
+        if (node.tagName === 'BR') continue; // Skip newlines in overwrite?
+
+        node.textContent = pasteText[pasteIdx];
+        pasteIdx++;
+      }
+
+      // If selection was larger than paste, fill rest with spaces?
+      if (range && (startPos + pasteIdx) < range.end) {
+        for (let i = startPos + pasteIdx; i < range.end; i++) {
+          const node = this.letterNodes[i];
+          if (node.tagName !== 'BR') node.textContent = ' ';
+        }
+      }
+
+      this.cursorPos = Math.min(this.letterNodes.length, startPos + pasteIdx);
+      this._clearSelection();
+      this._render();
+      this._emit('change');
+      return;
+    }
+
     const range = this._getSelectionRange();
     if (range) {
       for (let i = range.end - 1; i >= range.start; i--) {
@@ -229,6 +352,28 @@ class Notepad {
   setAppBackground(color) { try { document.body.style.backgroundColor = color; } catch (e) { } }
   setContainerBackground(color) { try { this.container.style.background = color; } catch (e) { } }
 
+  setNoteColorMap(map) {
+    this.noteColorMap = map;
+    this.recolor();
+  }
+
+  setRainbowCycleMode(steps = 10) {
+    const colors = Notepad.generateRainbowColors(steps);
+    let cycleIndex = 0;
+    this.setColorFunc((char, index) => {
+      // Reset cycle if we are starting from the beginning (index 0)
+      // Note: This works well for full re-renders or initial insert.
+      // For appending, index will be > 0, so cycle continues.
+      if (index === 0) cycleIndex = 0;
+
+      if (char === ' ') return 'transparent';
+
+      const color = colors[cycleIndex % colors.length];
+      cycleIndex++;
+      return color;
+    });
+  }
+
   setContainerPadding(padding) {
     this._containerPadding = padding;
     this.container.style.padding = padding;
@@ -246,6 +391,31 @@ class Notepad {
     if (radius !== null) this.container.style.borderRadius = radius + 'px';
     // Ensure style is solid if not set, though _build sets border: 1px solid #ccc
     this.container.style.borderStyle = 'solid';
+  }
+
+  setOverwriteMode(enabled) {
+    this.overwriteMode = !!enabled;
+  }
+
+  setEditable(enabled) {
+    this.isEditable = !!enabled;
+    if (!this.isEditable) {
+      this.textarea.blur();
+      this._clearSelection();
+    }
+  }
+
+  /**
+   * Set the insertion mode for character grouping
+   * @param {string} mode - 'letter' or 'word'
+   */
+  setInsertionMode(mode) {
+    const validModes = ['letter', 'word'];
+    if (validModes.includes(mode)) {
+      this.insertionMode = mode;
+    } else {
+      console.warn(`Invalid insertion mode: ${mode}. Valid modes are: ${validModes.join(', ')}`);
+    }
   }
 
   setResizable(enabled) {
@@ -266,6 +436,9 @@ class Notepad {
       const col = this._deterministicColorForChar(ch, i);
       n.style.backgroundColor = col;
       n.dataset.color = col;
+
+      const textCol = this._resolveTextColor(ch, i, col);
+      n.style.color = textCol;
     }
     this._render();
   }
@@ -318,6 +491,19 @@ class Notepad {
       if (!n || n.tagName === 'BR') continue;
       n.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
     }
+  }
+
+  setTextColor(color) {
+    this._textColor = color;
+    for (const n of this.letterNodes) {
+      if (!n || n.tagName === 'BR') continue;
+      n.style.color = color;
+    }
+  }
+
+  setTextColorFunc(fn) {
+    this.textColorFunc = (typeof fn === 'function') ? fn : null;
+    this.recolor();
   }
 
   // marginX: number => horizontal margin (px) applied as '0 ${marginX}px'
@@ -396,7 +582,7 @@ class Notepad {
             g.rect(x, y, w, h);
           }
 
-          g.fill(255);
+          g.fill(node.style.color || this._textColor || '#ffffff');
           g.text(node.textContent, x + 2, y + 2);
         }
 
@@ -470,7 +656,7 @@ class Notepad {
           ctx.closePath();
           ctx.fill();
 
-          ctx.fillStyle = '#ffffff';
+          ctx.fillStyle = node.style.color || this._textColor || '#ffffff';
           ctx.fillText(node.textContent, x + 4, y + 4);
         }
 
@@ -520,7 +706,7 @@ class Notepad {
     this.cursor = document.createElement('span');
     this.cursor.className = 'notepad-cursor';
     Object.assign(this.cursor.style, {
-      display: 'inline-block',
+      display: 'none', // Hidden by default
       width: '2px',
       height: (this.fontSize + 4) + 'px',
       backgroundColor: '#333',
@@ -554,13 +740,71 @@ class Notepad {
     });
     this.container.appendChild(this.textarea);
 
-    this.focus();
+    this.textarea.addEventListener('focus', () => {
+      this.cursor.style.display = 'inline-block';
+    });
+    this.textarea.addEventListener('blur', () => {
+      this.cursor.style.display = 'none';
+    });
+
+    // Initial focus call removed to respect "hidden by default"
+    // this.focus(); 
   }
 
   _attachEvents() {
     this._onPointerDown = (e) => {
       e.preventDefault();
+      if (!this.isEditable) return;
       this.focus();
+
+      const now = Date.now();
+      const isDouble = (this._lastClickTime && (now - this._lastClickTime < 300));
+      this._lastClickTime = now;
+
+      if (isDouble) {
+        let target = e.target;
+        if (target.nodeType === 3) target = target.parentNode;
+
+        if (target && target.dataset && typeof target.dataset.index !== 'undefined') {
+          const idx = parseInt(target.dataset.index, 10);
+          if (idx >= 0 && idx < this.letterNodes.length) {
+            const node = this.letterNodes[idx];
+            if (node.tagName !== 'BR') {
+              this.editingIndex = idx;
+
+              // Calculate offset
+              let offset = node.textContent.length;
+              if (document.caretRangeFromPoint) {
+                const range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                if (range) {
+                  if (range.startContainer === node.firstChild) {
+                    offset = range.startOffset;
+                  } else if (range.startContainer === node) {
+                    offset = (range.startOffset === 0) ? 0 : node.textContent.length;
+                  }
+                }
+              } else if (document.caretPositionFromPoint) {
+                const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+                if (pos) {
+                  if (pos.offsetNode === node.firstChild) {
+                    offset = pos.offset;
+                  } else if (pos.offsetNode === node) {
+                    offset = (pos.offset === 0) ? 0 : node.textContent.length;
+                  }
+                }
+              }
+
+              this.editingOffset = offset;
+              this._clearSelection();
+              this._render();
+              return;
+            }
+          }
+        }
+      }
+
+      this.editingIndex = null;
+      this._isTypingInWord = false; // Stop typing when clicking
 
       const rectContainer = this.container.getBoundingClientRect();
       const clickX = e.clientX - rectContainer.left + this.container.scrollLeft;
@@ -662,6 +906,10 @@ class Notepad {
 
     // Input event for mobile/IME
     this._onInput = (e) => {
+      if (!this.isEditable) {
+        this.textarea.value = '';
+        return;
+      }
       // Ignore input events during composition (swipe/handwriting)
       if (this.isComposing) return;
 
@@ -669,7 +917,8 @@ class Notepad {
 
       if (inputType === 'insertText' && e.data) {
         for (let char of e.data) {
-          this._insertChar(char);
+          if (this.overwriteMode) this._overwriteChar(char);
+          else this._insertChar(char);
         }
       } else if (inputType === 'insertLineBreak') {
         this._insertNewline();
@@ -692,11 +941,18 @@ class Notepad {
     this._onKeyDown = (e) => {
       const ctrl = e.ctrlKey || e.metaKey;
       if (ctrl && e.key.toLowerCase() === 'c') { e.preventDefault(); this.copy(); return; }
+
+      if (!this.isEditable) return;
+
       if (ctrl && e.key.toLowerCase() === 'x') { e.preventDefault(); this.cut(); return; }
       if (ctrl && e.key.toLowerCase() === 'v') { e.preventDefault(); this.paste(); return; }
 
       if (e.key === 'Enter') {
         e.preventDefault();
+        if (this.editingIndex !== null) {
+          this.cursorPos = this.editingIndex + 1;
+          this.editingIndex = null;
+        }
         this._insertNewline();
         this._render();
         this._emit('change');
@@ -705,27 +961,54 @@ class Notepad {
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
+        if (this.editingIndex !== null) {
+          if (this.editingOffset > 0) {
+            this.editingOffset--;
+            this._render();
+          } else {
+            this.cursorPos = this.editingIndex;
+            this.editingIndex = null;
+            this._render();
+          }
+          return;
+        }
         this.cursorPos = Math.max(0, this.cursorPos - 1);
         this._clearSelection();
+        this._isTypingInWord = false; // Stop typing when navigating
         this._render();
         return;
       }
       if (e.key === 'ArrowRight') {
         e.preventDefault();
+        if (this.editingIndex !== null) {
+          const node = this.letterNodes[this.editingIndex];
+          if (this.editingOffset < node.textContent.length) {
+            this.editingOffset++;
+            this._render();
+          } else {
+            this.cursorPos = this.editingIndex + 1;
+            this.editingIndex = null;
+            this._render();
+          }
+          return;
+        }
         this.cursorPos = Math.min(this.letterNodes.length, this.cursorPos + 1);
         this._clearSelection();
+        this._isTypingInWord = false; // Stop typing when navigating
         this._render();
         return;
       }
 
       if (e.key === 'Backspace') {
         e.preventDefault();
-        this._handleBackspace();
+        if (this.overwriteMode) this._handleOverwriteBackspace();
+        else this._handleBackspace();
         return;
       }
       if (e.key === 'Delete') {
         e.preventDefault();
-        this._handleDelete();
+        if (this.overwriteMode) this._handleOverwriteDelete();
+        else this._handleDelete();
         return;
       }
 
@@ -733,7 +1016,13 @@ class Notepad {
       // But for desktop, keydown is reliable. We can check if key is a single char.
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault(); // Prevent 'input' event to avoid double insertion
-        this._insertChar(e.key);
+
+        if (this.overwriteMode) {
+          this._overwriteChar(e.key);
+        } else {
+          this._insertChar(e.key);
+        }
+
         this._render();
         this._emit('change');
       }
@@ -761,6 +1050,19 @@ class Notepad {
   }
 
   _handleBackspace() {
+    if (this.editingIndex !== null) {
+      const node = this.letterNodes[this.editingIndex];
+      if (this.editingOffset > 0) {
+        const text = node.textContent;
+        const newText = text.slice(0, this.editingOffset - 1) + text.slice(this.editingOffset);
+        node.textContent = newText;
+        this.editingOffset--;
+        this._render();
+        this._emit('change');
+      }
+      return;
+    }
+
     const range = this._getSelectionRange();
     if (range) { this.cut(); return; }
     if (this.cursorPos > 0) {
@@ -773,6 +1075,18 @@ class Notepad {
   }
 
   _handleDelete() {
+    if (this.editingIndex !== null) {
+      const node = this.letterNodes[this.editingIndex];
+      const text = node.textContent;
+      if (this.editingOffset < text.length) {
+        const newText = text.slice(0, this.editingOffset) + text.slice(this.editingOffset + 1);
+        node.textContent = newText;
+        this._render();
+        this._emit('change');
+      }
+      return;
+    }
+
     const range = this._getSelectionRange();
     if (range) { this.cut(); return; }
     if (this.cursorPos < this.letterNodes.length) {
@@ -798,7 +1112,21 @@ class Notepad {
   _insertChar(ch, explicitColor = null) {
     if (ch === '\n') { this._insertNewline(); return; }
 
+    if (this.editingIndex !== null) {
+      const node = this.letterNodes[this.editingIndex];
+      if (node && node.tagName !== 'BR') {
+        const text = node.textContent;
+        const newText = text.slice(0, this.editingOffset) + ch + text.slice(this.editingOffset);
+        node.textContent = newText;
+        this.editingOffset++;
+        this._render();
+        this._emit('change');
+        return;
+      }
+    }
+
     const sel = this._getSelectionRange();
+
     if (sel) {
       for (let i = sel.end - 1; i >= sel.start; i--) {
         this.letterNodes[i].remove();
@@ -808,25 +1136,109 @@ class Notepad {
       this._clearSelection();
     }
 
+    const isSpace = ch === ' ';
+
+    // Word mode: new logic for intelligent grouping
+    if (this.insertionMode === 'word') {
+      const prevNode = this.letterNodes[this.cursorPos - 1];
+
+      if (isSpace) {
+        // Check if previous node is also a space
+        const isPrevSpace = prevNode && prevNode.textContent === ' ';
+
+        if (isPrevSpace) {
+          // Two spaces in a row: create a visual space block
+          const spaceSpan = document.createElement('span');
+          spaceSpan.textContent = ' ';
+          spaceSpan.style.display = 'inline-block';
+          spaceSpan.style.backgroundColor = 'transparent';
+          spaceSpan.style.color = 'transparent';
+          spaceSpan.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
+          spaceSpan.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
+          spaceSpan.dataset.color = 'transparent';
+
+          this.letterNodes.splice(this.cursorPos, 0, spaceSpan);
+          this.cursorPos++;
+          this._isTypingInWord = false; // Stop typing in word
+          this._render();
+          this._emit('change');
+          return;
+        } else {
+          // Single space: just mark it (invisible separator)
+          const spaceMarker = document.createElement('span');
+          spaceMarker.textContent = ' ';
+          spaceMarker.style.display = 'inline-block';
+          spaceMarker.style.backgroundColor = 'transparent';
+          spaceMarker.style.color = 'transparent';
+          spaceMarker.style.padding = '0';
+          spaceMarker.style.margin = '0';
+          spaceMarker.style.width = '0';
+          spaceMarker.style.overflow = 'hidden';
+          spaceMarker.dataset.color = 'transparent';
+          spaceMarker.dataset.invisibleSpace = 'true';
+
+          this.letterNodes.splice(this.cursorPos, 0, spaceMarker);
+          this.cursorPos++;
+          this._isTypingInWord = false; // Stop typing in word
+          this._render();
+          this._emit('change');
+          return;
+        }
+      } else {
+        // Not a space - check if we can append to previous word
+        // Only append if we were already typing in that word
+        const canAppendToPrev = this._isTypingInWord &&
+          prevNode &&
+          prevNode.tagName === 'SPAN' &&
+          prevNode.textContent.trim() !== '' &&
+          !prevNode.dataset.invisibleSpace;
+
+        if (canAppendToPrev) {
+          // Append character to the previous word span (continuing to type)
+          prevNode.textContent += ch;
+          this._isTypingInWord = true; // Keep typing flag active
+          this._render();
+          this._emit('change');
+          return;
+        }
+        // If not appending, we'll create a new span below and start typing
+      }
+    }
+
+    // Create a new span for this character
+    // After creating it, mark that we're starting to type in this new word
+    const willStartTyping = !isSpace && this.insertionMode === 'word';
     const span = document.createElement('span');
     span.textContent = ch;
 
     const color = explicitColor || this._getColorForChar(ch);
     span.style.display = 'inline-block';
-    span.style.backgroundColor = color;
-    span.style.color = 'white';
+    span.style.backgroundColor = isSpace ? 'transparent' : color;
+    span.style.color = this._resolveTextColor(ch, this.cursorPos, color);
+
+    // Apply standard spacing
     span.style.padding = `${this._letterPadY}px ${this._letterPadX}px`;
     span.style.margin = (typeof this._letterMarginX === 'number') ? `0 ${this._letterMarginX}px` : this._letterMarginX;
     span.style.borderRadius = this._letterBorderRadius + 'px';
     span.style.border = this._letterBorderWidth + 'px solid ' + this._letterBorderColor;
     // NOTE: do NOT set fontFamily or fontSize inline so spans inherit from container
     span.dataset.color = color;
-
+    //span.dataset.index = this.cursorPos;
     this.letterNodes.splice(this.cursorPos, 0, span);
     this.cursorPos++;
+
+    // Now that we've created the span, mark that we're typing in it
+    if (willStartTyping) {
+      this._isTypingInWord = true;
+    }
   }
 
   _insertNewline() {
+    if (this.editingIndex !== null) {
+      this.cursorPos = this.editingIndex + 1;
+      this.editingIndex = null;
+    }
+    if (this.overwriteMode) return; // No newlines in overwrite mode (fixed length/structure)
     const sel = this._getSelectionRange();
     if (sel) {
       for (let i = sel.end - 1; i >= sel.start; i--) {
@@ -840,6 +1252,82 @@ class Notepad {
     br.className = 'notepad-newline';
     this.letterNodes.splice(this.cursorPos, 0, br);
     this.cursorPos++;
+  }
+
+  _overwriteChar(ch) {
+    const sel = this._getSelectionRange();
+    if (sel) {
+      // Replace first char with ch
+      const firstNode = this.letterNodes[sel.start];
+      if (firstNode && firstNode.tagName !== 'BR') firstNode.textContent = ch;
+
+      // Replace rest with space
+      for (let i = sel.start + 1; i < sel.end; i++) {
+        const n = this.letterNodes[i];
+        if (n && n.tagName !== 'BR') n.textContent = ' ';
+      }
+      this.cursorPos = sel.start + 1;
+      this._clearSelection();
+    } else {
+      if (this.cursorPos >= this.letterNodes.length) return;
+      const node = this.letterNodes[this.cursorPos];
+      if (node && node.tagName !== 'BR') {
+        node.textContent = ch;
+        this.cursorPos++;
+      }
+    }
+  }
+
+  _handleOverwriteBackspace() {
+    const range = this._getSelectionRange();
+    if (range) {
+      // Replace selection with spaces
+      for (let i = range.start; i < range.end; i++) {
+        const n = this.letterNodes[i];
+        if (n && n.tagName !== 'BR') n.textContent = ' ';
+      }
+      this.cursorPos = range.start;
+      this._clearSelection();
+      this._render();
+      this._emit('change');
+      return;
+    }
+
+    if (this.cursorPos > 0) {
+      const prevIdx = this.cursorPos - 1;
+      const node = this.letterNodes[prevIdx];
+      if (node && node.tagName !== 'BR') {
+        node.textContent = ' ';
+        this.cursorPos--;
+        this._render();
+        this._emit('change');
+      }
+    }
+  }
+
+  _handleOverwriteDelete() {
+    const range = this._getSelectionRange();
+    if (range) {
+      // Replace selection with spaces
+      for (let i = range.start; i < range.end; i++) {
+        const n = this.letterNodes[i];
+        if (n && n.tagName !== 'BR') n.textContent = ' ';
+      }
+      this.cursorPos = range.start;
+      this._clearSelection();
+      this._render();
+      this._emit('change');
+      return;
+    }
+    if (this.cursorPos < this.letterNodes.length) {
+      const node = this.letterNodes[this.cursorPos];
+      if (node && node.tagName !== 'BR') {
+        node.textContent = ' ';
+        // Cursor stays
+        this._render();
+        this._emit('change');
+      }
+    }
   }
 
   _getColorForChar(ch) {
@@ -905,12 +1393,23 @@ class Notepad {
     return this.colors[pos % this.colors.length];
   }
 
+  _resolveTextColor(ch, index, bgColor) {
+    if (typeof this.textColorFunc === 'function') {
+      try {
+        const c = this.textColorFunc(ch, index, bgColor);
+        if (c) return c;
+      } catch (e) { console.error('textColorFunc error', e); }
+    }
+    return this._textColor;
+  }
+
   _clearAll() {
     for (let n of this.letterNodes) n.remove();
     this.letterNodes = [];
     this.cursorPos = 0;
     this._clearSelection();
     this._seqIndex = 0;
+    this.editingIndex = null;
   }
 
   _render() {
@@ -918,11 +1417,65 @@ class Notepad {
     for (let i = 0; i < this.letterNodes.length; i++) {
       const node = this.letterNodes[i];
       node.dataset.index = i;
+      // Normalize content if not editing
+      if (this.editingIndex !== i && node.childNodes.length > 1) {
+        node.textContent = node.textContent;
+      }
     }
 
-    for (let i = 0; i < this.cursorPos; i++) this.content.appendChild(this.letterNodes[i]);
-    this.content.appendChild(this.cursor);
-    for (let i = this.cursorPos; i < this.letterNodes.length; i++) this.content.appendChild(this.letterNodes[i]);
+    if (this.editingIndex !== null && this.editingIndex < this.letterNodes.length) {
+      // Render all nodes
+      for (let i = 0; i < this.letterNodes.length; i++) {
+        this.content.appendChild(this.letterNodes[i]);
+      }
+      // Place cursor inside the edited node
+      const node = this.letterNodes[this.editingIndex];
+      const text = node.textContent;
+      node.innerHTML = '';
+      const part1 = text.slice(0, this.editingOffset);
+      const part2 = text.slice(this.editingOffset);
+      node.appendChild(document.createTextNode(part1));
+      node.appendChild(this.cursor);
+      node.appendChild(document.createTextNode(part2));
+      this.cursor.style.display = 'inline-block';
+    } else {
+      // Check if we should place cursor inside the previous word (word mode)
+      let placeCursorInside = false;
+      let targetNode = null;
+
+      if (this.insertionMode === 'word' && this.cursorPos > 0 && this._isTypingInWord) {
+        const prevNode = this.letterNodes[this.cursorPos - 1];
+        // Place cursor inside if previous node is a word (not a space marker)
+        if (prevNode &&
+          prevNode.tagName === 'SPAN' &&
+          !prevNode.dataset.invisibleSpace &&
+          prevNode.textContent.trim() !== '') {
+          placeCursorInside = true;
+          targetNode = prevNode;
+        }
+      }
+
+      if (placeCursorInside && targetNode) {
+        // Render all nodes except we'll handle the target node specially
+        for (let i = 0; i < this.letterNodes.length; i++) {
+          if (this.letterNodes[i] === targetNode) {
+            // Insert cursor at the end of this node
+            const text = targetNode.textContent;
+            targetNode.innerHTML = '';
+            targetNode.appendChild(document.createTextNode(text));
+            targetNode.appendChild(this.cursor);
+            this.content.appendChild(targetNode);
+          } else {
+            this.content.appendChild(this.letterNodes[i]);
+          }
+        }
+      } else {
+        // Normal cursor placement between nodes
+        for (let i = 0; i < this.cursorPos; i++) this.content.appendChild(this.letterNodes[i]);
+        this.content.appendChild(this.cursor);
+        for (let i = this.cursorPos; i < this.letterNodes.length; i++) this.content.appendChild(this.letterNodes[i]);
+      }
+    }
 
     this._updateSelectionVisual();
     this._updateTextareaPosition();
@@ -1007,6 +1560,100 @@ class Notepad {
     for (const fn of this.handlers[eventName]) {
       try { fn(payload); } catch (e) { console.error(e); }
     }
+  }
+  // ---------------- Static Color Helpers ----------------
+
+  static get ALPHABET() {
+    return "abcdefghijklmnopqrstuvwxyz1234567890".split("");
+  }
+
+  static generateRainbowColors(steps) {
+    const rainbowColors = [];
+    for (let i = 0; i < steps; i++) {
+      const hue = (i / steps) * 360;
+      rainbowColors.push(`hsl(${hue}, 100%, 50%)`);
+    }
+    return rainbowColors;
+  }
+
+  static generateRandomColors(steps) {
+    const randomColors = [];
+    for (let i = 0; i < steps; i++) {
+      const r = Math.floor(Math.random() * 256);
+      const g = Math.floor(Math.random() * 256);
+      const b = Math.floor(Math.random() * 256);
+      randomColors.push(`rgb(${r}, ${g}, ${b})`);
+    }
+    return randomColors;
+  }
+
+  static assignRainbowColors(letters = Notepad.ALPHABET) {
+    const rainbowColors = Notepad.generateRainbowColors(letters.length);
+    let colorMap = {};
+    letters.forEach((letter, index) => {
+      colorMap[letter] = rainbowColors[index];
+    });
+    return colorMap;
+  }
+
+  static assignRandomColors(letters = Notepad.ALPHABET) {
+    const randomColors = Notepad.generateRandomColors(letters.length);
+    let colorMap = {};
+    letters.forEach((letter, index) => {
+      colorMap[letter] = randomColors[index];
+    });
+    return colorMap;
+  }
+
+  static getContrastColor(colorString) {
+    if (!colorString || colorString === 'transparent') return '#000000';
+    let r = 0, g = 0, b = 0;
+    if (colorString.startsWith('#')) {
+      const hex = colorString.slice(1);
+      if (hex.length === 3) {
+        r = parseInt(hex[0] + hex[0], 16);
+        g = parseInt(hex[1] + hex[1], 16);
+        b = parseInt(hex[2] + hex[2], 16);
+      } else if (hex.length === 6) {
+        r = parseInt(hex.slice(0, 2), 16);
+        g = parseInt(hex.slice(2, 4), 16);
+        b = parseInt(hex.slice(4, 6), 16);
+      }
+    } else if (colorString.startsWith('rgb')) {
+      const match = colorString.match(/\d+/g);
+      if (match && match.length >= 3) {
+        r = parseInt(match[0]);
+        g = parseInt(match[1]);
+        b = parseInt(match[2]);
+      }
+    } else if (colorString.startsWith('hsl')) {
+      const match = colorString.match(/hsl\(\s*\d+\s*,\s*\d+%\s*,\s*(\d+)%\s*\)/);
+      if (match) {
+        return parseInt(match[1]) > 50 ? '#000000' : '#ffffff';
+      }
+      return '#000000';
+    }
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return (yiq >= 128) ? '#000000' : '#ffffff';
+  }
+
+  static getComplementaryColor(colorString) {
+    if (!colorString || colorString === 'transparent') return '#000000';
+    const hslMatch = colorString.match(/hsl\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)/);
+    if (hslMatch) {
+      const h = parseInt(hslMatch[1]);
+      const s = parseInt(hslMatch[2]);
+      const l = parseInt(hslMatch[3]);
+      const newH = (h + 180) % 360;
+      return `hsl(${newH}, ${s}%, ${l}%)`;
+    }
+    if (colorString.startsWith('#')) {
+      const hex = colorString.slice(1);
+      const num = parseInt(hex, 16);
+      const inverted = 0xFFFFFF ^ num;
+      return '#' + inverted.toString(16).padStart(6, '0');
+    }
+    return '#000000';
   }
 }
 
